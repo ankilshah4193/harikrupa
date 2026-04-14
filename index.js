@@ -26,7 +26,7 @@ const ask = (question) => {
 };
 
 program
-  .version('2.0.6')
+  .version('2.0.7')
   .description('Ancient wisdom for the modern era (English + Preferred Language).')
   .option('-t, --topic <query>', 'Ask your life question in English')
   .option('--lang <language>', 'Change your preferred language preference')
@@ -151,7 +151,7 @@ program
       });
 
       // --- 8. FINAL OUTPUT ---
-      console.log(chalk.yellow.bold(`Wisdom from Chapter ${bestMatch.chapter}, Verse ${bestMatch.verse}`));
+      console.log(chalk.yellow.bold(`Wisdom from Srimad Bhagavad Gita: Chapter ${bestMatch.chapter}, Verse ${bestMatch.verse}`));
       console.log(chalk.white("--------------------------------------------------\n"));
       console.log(chalk.white(chatCompletion.choices[0]?.message?.content));
       console.log(chalk.white("\n--------------------------------------------------\n"));
