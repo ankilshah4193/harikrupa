@@ -57,7 +57,7 @@ harikrupa -t "I am burnt out writing this code"
 ## 🛠️ Technical Stack
 
 * **Vector Search:** Powered by `@xenova/transformers` (local execution).
-* **LLM Integration:** High-speed responses via **Groq SDK** (Llama 3 70B).
+* **LLM Integration:** High-speed responses via **Groq SDK** (openai/gpt-oss-120b).
 * **CLI Framework:** Built with `commander` and `chalk`.
 
 ---
