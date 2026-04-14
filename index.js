@@ -26,7 +26,7 @@ const ask = (question) => {
 };
 
 program
-  .version('2.0.5')
+  .version('2.0.6')
   .description('Ancient wisdom for the modern era (English + Preferred Language).')
   .option('-t, --topic <query>', 'Ask your life question in English')
   .option('--lang <language>', 'Change your preferred language preference')

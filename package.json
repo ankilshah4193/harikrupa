@@ -1,6 +1,6 @@
 {
   "name": "harikrupa",
-  "version": "2.0.5",
+  "version": "2.0.6",
   "description": "Ancient wisdom dynamically tailored to modern developer burnout.",
   "main": "index.js",
   "type": "module",
@@ -13,7 +13,8 @@
   "files": [
     "index.js",
     "postinstall.js",
-    "data/verse_embeddings.json"
+    "data/verse_embeddings.json",
+    "README.md"
   ],
   "author": "Ankil Shah",
   "license": "MIT",
