@@ -9,7 +9,7 @@ Harikrupa is a CLI tool designed to help developers and creators navigate burnou
 ## 🌟 Features
 
 * **Offline First Search:** Uses a local vector database to find the most relevant Gita verses instantly.
-* **Bilingual Wisdom:** Get your answers in English and your preferred language (Gujarati, Hindi, Spanish, Chinese, Arabic, etc.).
+* **Bilingual Wisdom:** Get your answers in English and your preferred language (any language from around the world).
 * **Modern Voice:** No preachy or outdated language. Just real advice for Millennials, Gen Z, and Gen Alpha.
 * **Privacy Minded:** Your API keys and preferences stay on your local machine.
 

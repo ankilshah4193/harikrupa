@@ -26,7 +26,7 @@ const ask = (question) => {
 };
 
 program
-  .version('2.0.9')
+  .version('3.0.0')
   .description('Ancient wisdom for the modern era (English + Preferred Language).')
   .option('-t, --topic <query>', 'Ask your life question in English')
   .option('--lang <language>', 'Change your preferred language preference')
@@ -133,9 +133,11 @@ program
       Sanskrit Original: ${bestMatch.sanskrit_verse}
       
       YOUR TASK:
-      1. Be real. Start by acknowledging the user's struggle with genuine empathy. Use simple and direct language that feels natural to Millennials and Gen Z. Avoid sounding preachy or outdated.
-      2. Provide the Sanskrit Original Verse.
-      3. Explain in 3 lines why this verse is a total game-changer for their specific problem. Keep the advice practical, relatable, and very easy to understand. Break down the deep philosophy into simple "vibes" or "mindset shifts" that someone today can actually use.
+      1. Start by acknowledging the user's struggle with genuine empathy. Use direct, conversational language that feels current and avoids sounding formal or outdated. The goal is to make the user feel seen and understood before diving into any philosophy or data. (1-Line Limit)
+      2. Briefly explain the historical or cosmic narrative that mirrors the user's specific problem. Connect the user's current "main character" struggle to a specific moment in the Srimad Bhagavad Gita to show that this experience is a recognized part of the human journey. (1-Line Limit)
+      3. Provide the original Sanskrit verse from the Srimad Bhagavad Gita. Include the phonetic transliteration (IAST) and translation in ${config.PREFERRED_LANGUAGE}.. so the user can connect with the sound and vibration of the words, keeping the "source of truth" at the center of the answer.
+      4. Explain in exactly 2-3 lines why this specific wisdom is a practical solution for the modern day. Reframe deep philosophy into a "vibe shift" or a "mental hack" that the user can immediately apply to change their perspective on the problem. Frame sentences properly. (2-3 Lines Limit)
+      5. Provide a 2-3 lines of instruction on the physical or mental action the user needs to perform next. Ensure the tone is high-energy, optimistic, and focused on practical alignment rather than just passive waiting. Frame sentences properly. (2-3 Lines Limit)
       
       STRICT RULES:
       - DO NOT use em-dashes (—) anywhere in your response. Use commas, colons, or periods instead.
