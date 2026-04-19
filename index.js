@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import readline from 'readline';
+import dns from 'dns';
 import { fileURLToPath } from 'url';
 import { pipeline, cos_sim } from '@xenova/transformers';
 import Groq from 'groq-sdk';
@@ -25,8 +26,16 @@ const ask = (question) => {
   }));
 };
 
+const isOnline = () => {
+  return new Promise((resolve) => {
+    dns.lookup('google.com', (err) => {
+      resolve(!(err && err.code === 'ENOTFOUND'));
+    });
+  });
+};
+
 program
-  .version('3.0.2')
+  .version('3.0.3')
   .description('Ancient wisdom for the modern era (English + Preferred Language).')
   .option('-t, --topic <query>', 'Ask your life question in English')
   .option('--lang <language>', 'Change your preferred language preference')
@@ -95,6 +104,14 @@ program
       return;
     }
 
+    // --- PRE-FLIGHT INTERNET CHECK ---
+    const online = await isOnline();
+    if (!online) {
+      console.log(chalk.red('\n❌ No Internet Connection.'));
+      console.log(chalk.white('Harikrupa needs the internet to connect with the AI mentor. Please check your Wi-Fi and try again.\n'));
+      return; // Exit immediately before loading heavy local models
+    }
+
     console.log(chalk.blue(`\nReflecting on your situation in English & ${config.PREFERRED_LANGUAGE}...\n`));
 
     try {
@@ -107,6 +124,7 @@ program
       const extractor = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
       const queryOutput = await extractor(options.topic, { pooling: 'mean', normalize: true });
       const queryVector = queryOutput.tolist()[0];
+
       const verses = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
 
       let bestMatch = null;
@@ -118,6 +136,16 @@ program
           highestScore = score;
           bestMatch = verse;
         }
+      }
+
+      // --- THRESHOLD & FALLBACK LOGIC ---
+      // Log the score if you want to debug in the future: console.log(`Confidence Score: ${highestScore}`);
+      const MIN_THRESHOLD = 0.25; 
+
+      if (highestScore < MIN_THRESHOLD) {
+        // If the score is too low, it's likely a greeting or vague statement.
+        // Fallback to Chapter 18, Verse 66 (a universal verse of devotion and peace).
+        bestMatch = verses.find(v => String(v.chapter) === "18" && String(v.verse) === "66") || verses[0];
       }
 
       if (!bestMatch) throw new Error("Could not find a relevant verse.");
@@ -133,11 +161,11 @@ program
       Sanskrit Original: ${bestMatch.sanskrit_verse}
       
       YOUR TASK:
-      1. Start by acknowledging the user's struggle with genuine empathy. Use direct, conversational language that feels current and avoids sounding formal or outdated. The goal is to make the user feel seen and understood before diving into any philosophy or data. (1-Line Limit)
-      2. Briefly explain the historical or cosmic narrative that mirrors the user's specific problem. Connect the user's current "main character" struggle to a specific moment in the Srimad Bhagavad Gita to show that this experience is a recognized part of the human journey. (1-Line Limit)
-      3. Provide the original Sanskrit verse from the Srimad Bhagavad Gita. Include the phonetic transliteration (IAST) and translation in ${config.PREFERRED_LANGUAGE}.. so the user can connect with the sound and vibration of the words, keeping the "source of truth" at the center of the answer.
-      4. Explain in exactly 2-3 lines why this specific wisdom is a practical solution for the modern day. Reframe deep philosophy into a "vibe shift" or a "mental hack" that the user can immediately apply to change their perspective on the problem. Frame sentences properly. (2-3 Lines Limit)
-      5. Provide a 2-3 lines of instruction on the physical or mental action the user needs to perform next. Ensure the tone is high-energy, optimistic, and focused on practical alignment rather than just passive waiting. Frame sentences properly. (2-3 Lines Limit)
+      1. Analyze the user input. If it is a greeting or devotional phrase (like "Jai Shree Ram", "Hello"), acknowledge it respectfully with warmth and shared devotion. If the user shares a struggle or life problem, acknowledge their situation with genuine empathy. Do not invent a struggle if the user hasn't mentioned one. (1-Line Limit)
+      2. Connect the context. If the user shared a struggle, briefly explain the historical or cosmic narrative from the Gita that mirrors their problem. If it was a greeting or general statement, briefly explain how this specific verse reflects the spirit of their input or the path of devotion and duty. (1-Line Limit)
+      3. Provide the original Sanskrit verse from the Srimad Bhagavad Gita. Include the phonetic transliteration (IAST) and translation in ${config.PREFERRED_LANGUAGE} so the user can connect with the sound and vibration of the words, keeping the "source of truth" at the center of the answer.
+      4. Explain in exactly 2-3 lines why this specific wisdom is practical for the modern day. Reframe deep philosophy into a "vibe shift", mental hack, or grounding thought that the user can apply today. Frame sentences properly. (2-3 Lines Limit)
+      5. Provide 2-3 lines of instruction on a physical or mental action the user can perform next. Ensure the tone is high-energy, optimistic, and focused on practical alignment (whether it is an action to solve a problem or a reflective practice for devotion). Frame sentences properly. (2-3 Lines Limit)
       
       STRICT RULES:
       - DO NOT use em-dashes (—) anywhere in your response. Use commas, colons, or periods instead.

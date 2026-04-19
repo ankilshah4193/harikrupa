@@ -1,41 +1,49 @@
 # 🙏 Harikrupa
 
-**Ancient wisdom for the modern era.**
+**Ancient wisdom dynamically tailored to modern developer burnout.**
 
-Harikrupa is a CLI tool designed to help developers and creators navigate burnout, stress, and life's big questions. It uses a hybrid approach: local semantic search to find the perfect verse from the Bhagavad Gita, and the Groq API to provide a bilingual, mentor-style response tailored specifically to your situation.
+[![npm version](https://badge.fury.io/js/harikrupa.svg)](https://www.npmjs.com/package/harikrupa)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+Harikrupa is a lightweight, high-performance CLI tool designed to help developers navigate burnout, stress, and life's complex decisions. It utilizes a **Hybrid RAG (Retrieval-Augmented Generation) Architecture**: performing zero-latency semantic search locally, followed by high-speed inference via the Groq API to provide a customized, bilingual response.
 
 ---
 
-## 🌟 Features
+## 🌟 Core Features
 
-* **Offline First Search:** Uses a local vector database to find the most relevant Gita verses instantly.
-* **Bilingual Wisdom:** Get your answers in English and your preferred language (any language from around the world).
-* **Modern Voice:** No preachy or outdated language. Just real advice for Millennials, Gen Z, and Gen Alpha.
-* **Privacy Minded:** Your API keys and preferences stay on your local machine.
+* **Offline-First Vector Search:** Utilizes a local vector database and ONNX runtime to find the most relevant Bhagavad Gita verses instantly, without sending your raw queries to a search engine.
+* **Ultra-Low Latency Inference:** Integrates with the Groq API to generate responses at blazing speeds.
+* **Bilingual Output:** Receive guidance in English alongside your preferred local language (e.g., Gujarati, Hindi, Spanish).
+* **Modern Context:** Translates deep philosophical concepts into practical "mental hacks" and actionable steps for today's tech-driven environment.
+* **Graceful Degradation:** Built-in network checks ensure the CLI fails fast and gracefully if you lose internet connectivity.
 
 ---
 
 ## 🚀 Installation
 
-Install the package globally via npm:
+Install the package globally via npm to access the CLI from any terminal:
 
 ```bash
 npm install -g harikrupa
 ```
 
+*Note: Requires Node.js v18.0.0 or higher.*
+
 ---
 
-## 🛠️ Setup
+## 🛠️ Initial Setup
 
-After installation, simply run the tool to start the setup wizard:
+After installation, run the tool without any flags to launch the interactive setup wizard:
 
 ```bash
 harikrupa
 ```
 
 The wizard will guide you through:
-1.  Getting your free Groq API key from [console.groq.com](https://console.groq.com/keys).
-2.  Selecting your preferred language for the wisdom.
+1. Connecting your free Groq API key (from [console.groq.com](https://console.groq.com/keys)).
+2. Setting your preferred language for the translated wisdom.
+
+*(Your API key and preferences are stored securely and locally on your machine at `~/.harikrupa.json`)*
 
 ---
 
@@ -44,24 +52,35 @@ The wizard will guide you through:
 Ask any question about life, work, or stress using the `-t` or `--topic` flag:
 
 ```bash
-harikrupa -t "I am burnt out writing this code"
+harikrupa -t "I am completely burnt out from this release cycle"
 ```
 
-### Other Commands
+### Additional Commands
 
-* **Change Language:** `harikrupa --lang "Spanish"`
-* **Update API Key:** `harikrupa --set-key "your_new_key"`
+* **Change Language Preference:** ```bash
+  harikrupa --lang "Gujarati"
+  ```
+* **Update API Key Manually:** ```bash
+  harikrupa --set-key "gsk_your_new_api_key_here"
+  ```
+* **Check Version:** ```bash
+  harikrupa --version
+  ```
 
 ---
 
-## 🛠️ Technical Stack
+## 🏗️ Architecture & Tech Stack
 
-* **Vector Search:** Powered by `@xenova/transformers` (local execution).
-* **LLM Integration:** High-speed responses via **Groq SDK** (openai/gpt-oss-120b).
-* **CLI Framework:** Built with `commander` and `chalk`.
+Harikrupa splits the workload to optimize for both privacy and speed:
+
+1. **Embedding Extraction:** `@xenova/transformers` (`all-MiniLM-L6-v2`) runs locally to convert your query into a mathematical vector.
+2. **Semantic Search:** Cosine similarity is calculated against a local pre-computed JSON database of verse embeddings.
+3. **Generation:** The top-matching verse and your query are sent to **Groq** to generate a highly contextual, structured response.
+4. **CLI Framework:** Built robustly with `commander` and styled with `chalk`.
 
 ---
 
-## 📄 License
+## 📝 License
 
-MIT © Ankil Shah
+Distributed under the MIT License. See `LICENSE` for more information.
+```
