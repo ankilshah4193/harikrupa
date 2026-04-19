@@ -7,8 +7,8 @@ const bold = "\x1b[1m";
 const dim = "\x1b[2m";
 
 console.log("\n");
-console.log(green + bold + "  🙏 Harikrupa (v3.0.4) installed successfully!" + reset);
-console.log(dim + "  Ancient wisdom for the modern era." + reset);
+console.log(green + bold + "  🙏 Harikrupa (v3.0.5) installed successfully!" + reset);
+console.log(dim + "  Ancient wisdom dynamically tailored to modern developer burnout." + reset);
 console.log("\n  " + cyan + bold + "GETTING STARTED" + reset);
 console.log("  " + "--------------------------------------------------");
 console.log("  " + bold + "1. Connect:  " + reset + "harikrupa" + dim + " (starts the setup wizard)" + reset);
@@ -18,5 +18,4 @@ console.log("\n  " + cyan + bold + "HELPFUL COMMANDS" + reset);
 console.log("  " + bold + "--lang" + reset + "       Change your language (e.g., " + yellow + "harikrupa --lang Spanish" + reset + ")");
 console.log("  " + bold + "--set-key" + reset + "    Update your Groq API key manually");
 console.log("  " + bold + "--version" + reset + "    Check current version");
-console.log("\n  " + dim + "Get your free API key at: https://console.groq.com/keys" + reset);
-console.log("\n");
+console.log("\n  " + dim + "Works offline and online. Get ready for a vibe shift.\n" + reset);

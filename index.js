@@ -36,7 +36,7 @@ const isOnline = () => {
 };
 
 program
-  .version('3.0.4')
+  .version('3.0.3')
   .description('Ancient wisdom for the modern era (English + Preferred Language).')
   .option('-t, --topic <query>', 'Ask your life question in English')
   .option('--lang <language>', 'Change your preferred language preference')
@@ -153,6 +153,27 @@ program
         console.log(chalk.white("--------------------------------------------------"));
         console.log(chalk.cyan("Sanskrit:"));
         console.log(chalk.white(bestMatch.sanskrit_verse));
+        
+        // Dynamically pull the preferred language from the local JSON if it exists
+        const localLangKey = prefLang.toLowerCase();
+        
+        // Find available languages by filtering out non-language keys
+        const excludedKeys = ['chapter', 'verse', 'sanskrit_verse', 'embedding'];
+        const availableLangs = Object.keys(bestMatch)
+            .filter(key => !excludedKeys.includes(key))
+            .map(lang => lang.charAt(0).toUpperCase() + lang.slice(1)); // Capitalize them
+
+        if (localLangKey !== 'english') {
+            console.log(chalk.cyan(`\n${prefLang}:`));
+            if (bestMatch[localLangKey]) {
+                console.log(chalk.white(bestMatch[localLangKey]));
+            } else {
+                console.log(chalk.yellow(`⚠️ Offline Translation Unavailable`));
+                console.log(chalk.white.dim(`Your local database currently only has pre-downloaded translations for: ${availableLangs.join(', ')}.`));
+                console.log(chalk.white.dim(`(Please connect to the internet so the AI can dynamically translate this into ${prefLang})`));
+            }
+        }
+
         console.log(chalk.cyan("\nEnglish:"));
         console.log(chalk.white(bestMatch.english));
         console.log(chalk.white("--------------------------------------------------\n"));
@@ -185,7 +206,7 @@ program
 
       const chatCompletion = await groq.chat.completions.create({
         messages: [{ role: 'system', content: systemPrompt }],
-        model: 'openai/gpt-oss-120b',
+        model: 'openai/gpt-oss-120b', 
         temperature: 0.5,
       });
 

@@ -15,9 +15,9 @@ Harikrupa is a lightweight, high-performance CLI tool designed to help developer
 
 * **Offline-First Vector Search:** Utilizes a local vector database and ONNX runtime to find the most relevant Bhagavad Gita verses instantly, without sending your raw queries to a search engine.
 * **Graceful Offline Fallback:** If you lose internet connectivity (e.g., on an airplane), Harikrupa won't crash. It seamlessly switches to Offline Mode, using the local vector search to print the raw Sanskrit and English verse directly to your terminal.
+* **Smart Language Detection:** When offline, the CLI intelligently reads the local vector database to see if a pre-compiled translation of your preferred language exists. If not, it gracefully lists the available offline languages.
 * **Ultra-Low Latency Inference:** When online, Harikrupa integrates with the Groq API to generate highly contextual responses at blazing speeds.
-* **Bilingual Output:** Receive guidance in English alongside your preferred local language (e.g., Gujarati, Hindi, Spanish).
-* **Modern Context:** Translates deep philosophical concepts into practical "mental hacks" and actionable steps for today's tech-driven environment.
+* **Bilingual Output:** Receive dynamic AI guidance in English alongside your preferred local language (e.g., Gujarati, Hindi, Spanish).
 
 ---
 
@@ -80,8 +80,8 @@ Harikrupa operates in a two-step "relay" to optimize for privacy, speed, and rel
 * **Vector Matching:** Cosine similarity is calculated against a local pre-computed JSON database of verse embeddings to find the perfect matching verse.
 
 ### Step 2: The Network Split
-* **If Online:** The top-matching verse and your query are sent to **Groq** to generate a highly contextual, structured AI mentor response.
-* **If Offline:** The CLI detects the network drop and safely bypasses the AI generation, printing the raw matching verse from the local database directly to your terminal.
+* **If Online:** The top-matching verse and your query are sent to **Groq** to generate a highly contextual, structured AI mentor response in your preferred language.
+* **If Offline:** The CLI detects the network drop and safely bypasses the AI generation. It dynamically queries the local database for available translations and prints the raw matching verse directly to your terminal.
 
 ---
 
@@ -89,7 +89,3 @@ Harikrupa operates in a two-step "relay" to optimize for privacy, speed, and rel
 
 Distributed under the MIT License. See `LICENSE` for more information.
 ```
-
-### Key Updates Made:
-1. **Graceful Offline Fallback** was added as a primary bullet point in the Core Features. 
-2. **Architecture & Tech Stack** was entirely rewritten into "Step 1" and "Step 2" to clearly document the relay-race logic (local search always runs, network decides the final output format).
