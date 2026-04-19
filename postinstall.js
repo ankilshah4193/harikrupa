@@ -7,7 +7,7 @@ const bold = "\x1b[1m";
 const dim = "\x1b[2m";
 
 console.log("\n");
-console.log(green + bold + "  🙏 Harikrupa (v3.0.5) installed successfully!" + reset);
+console.log(green + bold + "  🙏 Harikrupa (v3.0.6) installed successfully!" + reset);
 console.log(dim + "  Ancient wisdom dynamically tailored to modern developer burnout." + reset);
 console.log("\n  " + cyan + bold + "GETTING STARTED" + reset);
 console.log("  " + "--------------------------------------------------");
