@@ -7,15 +7,17 @@
 
 Harikrupa is a lightweight, high-performance CLI tool designed to help developers navigate burnout, stress, and life's complex decisions. It utilizes a **Hybrid RAG (Retrieval-Augmented Generation) Architecture**: performing zero-latency semantic search locally, followed by high-speed inference via the Groq API to provide a customized, bilingual response.
 
+
+
 ---
 
 ## 🌟 Core Features
 
 * **Offline-First Vector Search:** Utilizes a local vector database and ONNX runtime to find the most relevant Bhagavad Gita verses instantly, without sending your raw queries to a search engine.
-* **Ultra-Low Latency Inference:** Integrates with the Groq API to generate responses at blazing speeds.
+* **Graceful Offline Fallback:** If you lose internet connectivity (e.g., on an airplane), Harikrupa won't crash. It seamlessly switches to Offline Mode, using the local vector search to print the raw Sanskrit and English verse directly to your terminal.
+* **Ultra-Low Latency Inference:** When online, Harikrupa integrates with the Groq API to generate highly contextual responses at blazing speeds.
 * **Bilingual Output:** Receive guidance in English alongside your preferred local language (e.g., Gujarati, Hindi, Spanish).
 * **Modern Context:** Translates deep philosophical concepts into practical "mental hacks" and actionable steps for today's tech-driven environment.
-* **Graceful Degradation:** Built-in network checks ensure the CLI fails fast and gracefully if you lose internet connectivity.
 
 ---
 
@@ -71,12 +73,15 @@ harikrupa -t "I am completely burnt out from this release cycle"
 
 ## 🏗️ Architecture & Tech Stack
 
-Harikrupa splits the workload to optimize for both privacy and speed:
+Harikrupa operates in a two-step "relay" to optimize for privacy, speed, and reliability:
 
-1. **Embedding Extraction:** `@xenova/transformers` (`all-MiniLM-L6-v2`) runs locally to convert your query into a mathematical vector.
-2. **Semantic Search:** Cosine similarity is calculated against a local pre-computed JSON database of verse embeddings.
-3. **Generation:** The top-matching verse and your query are sent to **Groq** to generate a highly contextual, structured response.
-4. **CLI Framework:** Built robustly with `commander` and styled with `chalk`.
+### Step 1: Always Local (Semantic Search)
+* **Embedding Extraction:** `@xenova/transformers` (`all-MiniLM-L6-v2`) runs entirely on your local machine to convert your query into a mathematical vector.
+* **Vector Matching:** Cosine similarity is calculated against a local pre-computed JSON database of verse embeddings to find the perfect matching verse.
+
+### Step 2: The Network Split
+* **If Online:** The top-matching verse and your query are sent to **Groq** to generate a highly contextual, structured AI mentor response.
+* **If Offline:** The CLI detects the network drop and safely bypasses the AI generation, printing the raw matching verse from the local database directly to your terminal.
 
 ---
 
@@ -84,3 +89,7 @@ Harikrupa splits the workload to optimize for both privacy and speed:
 
 Distributed under the MIT License. See `LICENSE` for more information.
 ```
+
+### Key Updates Made:
+1. **Graceful Offline Fallback** was added as a primary bullet point in the Core Features. 
+2. **Architecture & Tech Stack** was entirely rewritten into "Step 1" and "Step 2" to clearly document the relay-race logic (local search always runs, network decides the final output format).
