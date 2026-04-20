@@ -36,7 +36,7 @@ const isOnline = () => {
 };
 
 program
-  .version('3.0.7')
+  .version('3.0.8')
   .description('Ancient wisdom for the modern era (English + Preferred Language).')
   .option('-t, --topic <query>', 'Ask your life question in English')
   .option('--lang <language>', 'Change your preferred language preference')
