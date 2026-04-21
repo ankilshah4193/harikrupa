@@ -13,7 +13,7 @@ Harikrupa is a lightweight, high-performance CLI tool designed to help developer
 
 * **🧠 Smart Semantic Search:** Uses a local vector database to find the perfect matching Bhagavad Gita verse for your specific situation.
 * **🎲 Verse of the Day:** Use the `random` command for a quick grounding thought without needing to ask a specific question.
-* **🌍 Bilingual Perspective:** Get structured wisdom in English and your preferred language (Spanish, Gujarati, Hindi, etc.) simultaneously.
+* **🌍 Bilingual Perspective:** Get structured wisdom in English and your preferred language side-by-side. Built-in native-script headings for 20+ languages (Gujarati → `ગુજરાતી દ્રષ્ટિકોણ`, Hindi → `हिंदी दृष्टिकोण`, Japanese → `日本語の視点`, etc.); any other language is translated dynamically by the AI.
 * **🎨 Aesthetic UI:** Fully color-coded terminal output with Gold perspectives, Cyan subheaders, and dimmed body text for better focus.
 * **📴 Offline-First:** Works anywhere. If you're off-grid, it safely falls back to local translations so your wisdom is never out of reach.
 * **💸 100% Free AI:** Uses Groq's LPU technology for near-instant answers. No credit card or subscription required.

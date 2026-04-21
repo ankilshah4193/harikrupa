@@ -6,7 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import readline from 'readline';
-import dns from 'dns';
+import net from 'node:net';
 import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
 import { pipeline, cos_sim } from '@xenova/transformers';
@@ -17,6 +17,61 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DB_PATH = path.join(__dirname, 'data', 'verse_embeddings.json');
 const CONFIG_PATH = path.join(os.homedir(), '.harikrupa.json');
+
+// Helper to title-case a language name (e.g., "gujarati" -> "Gujarati", "SPANISH" -> "Spanish")
+// Handles multi-word names too (e.g., "brazilian portuguese" -> "Brazilian Portuguese").
+const toTitleCase = (str) => {
+  if (!str) return str;
+  return str
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
+// Native-script names for common languages. Used to render the section header
+// in the user's own script (e.g., "### ગુજરાતી દ્રષ્ટિકોણ" instead of "### Gujarati Perspective").
+// If a language isn't in this map, we fall back to the English name and also ask
+// the LLM (in the prompt) to use the native script in its own heading.
+const NATIVE_LANG_NAMES = {
+  'gujarati':   'ગુજરાતી દ્રષ્ટિકોણ',
+  'hindi':      'हिंदी दृष्टिकोण',
+  'marathi':    'मराठी दृष्टिकोन',
+  'bengali':    'বাংলা দৃষ্টিকোণ',
+  'tamil':      'தமிழ் பார்வை',
+  'telugu':     'తెలుగు దృక్కోణం',
+  'kannada':    'ಕನ್ನಡ ದೃಷ್ಟಿಕೋನ',
+  'malayalam':  'മലയാളം കാഴ്ചപ്പാട്',
+  'punjabi':    'ਪੰਜਾਬੀ ਦ੍ਰਿਸ਼ਟੀਕੋਣ',
+  'sanskrit':   'संस्कृत दृष्टिकोणम्',
+  'urdu':       'اردو نقطہ نظر',
+  'arabic':     'المنظور العربي',
+  'spanish':    'Perspectiva en Español',
+  'french':     'Perspective Française',
+  'german':     'Deutsche Perspektive',
+  'italian':    'Prospettiva Italiana',
+  'portuguese': 'Perspectiva em Português',
+  'russian':    'Русская перспектива',
+  'japanese':   '日本語の視点',
+  'chinese':    '中文视角',
+  'korean':     '한국어 관점',
+  'english':    'English Perspective',
+};
+
+// Returns the section heading for the preferred language along with a flag
+// indicating whether the heading is already in that language's native script.
+// - If the language is in NATIVE_LANG_NAMES  -> { heading: "<native script>", isNative: true }
+//   (use verbatim; do not re-translate)
+// - Otherwise                                -> { heading: "<Lang> Perspective", isNative: false }
+//   (caller should ask the LLM to translate the heading into the native script of that language)
+const getNativePerspectiveHeading = (language) => {
+  const key = (language || '').toLowerCase().trim();
+  if (NATIVE_LANG_NAMES[key]) {
+    return { heading: NATIVE_LANG_NAMES[key], isNative: true };
+  }
+  return { heading: `${toTitleCase(language)} Perspective`, isNative: false };
+};
 
 // Helper for interactive setup
 const ask = (question) => {
@@ -33,17 +88,33 @@ const openBrowser = (url) => {
   exec(`${command} ${url}`, () => { });
 };
 
-// Helper to check internet connection
-const isOnline = () => {
+// Helper to check internet connection.
+// Uses a TCP probe to Cloudflare DNS (1.1.1.1:53) rather than a DNS hostname lookup:
+//   - Works in regions where Google is blocked.
+//   - TCP reachability is a stronger signal than DNS resolution (which can return
+//     cached results even when actually offline).
+//   - No external dependencies, uses Node's built-in `net` module.
+// Capped at 1500ms so a flaky network doesn't stall the CLI.
+const isOnline = (timeoutMs = 1500) => {
   return new Promise((resolve) => {
-    dns.lookup('google.com', (err) => {
-      resolve(!(err && err.code === 'ENOTFOUND'));
-    });
+    const socket = new net.Socket();
+    let settled = false;
+    const done = (result) => {
+      if (settled) return;
+      settled = true;
+      socket.destroy();
+      resolve(result);
+    };
+    socket.setTimeout(timeoutMs);
+    socket.once('connect', () => done(true));
+    socket.once('timeout', () => done(false));
+    socket.once('error', () => done(false));
+    socket.connect(53, '1.1.1.1');
   });
 };
 
 program
-  .version('4.0.1')
+  .version('4.0.2')
   .description('Ancient wisdom for the modern era (English + Preferred Language).')
   .argument('[cmd]', 'Run a specific command (e.g., "random")') // <--- Added argument support
   .option('-t, --topic <query>', 'Ask your life question in English')
@@ -63,7 +134,8 @@ program
 
     // --- 2. UPDATE LANGUAGE PREFERENCE ---
     if (options.lang) {
-      config.PREFERRED_LANGUAGE = options.lang.trim();
+      // Normalize to title case so "gujarati" / "GUJARATI" both become "Gujarati"
+      config.PREFERRED_LANGUAGE = toTitleCase(options.lang.trim());
       fs.writeFileSync(CONFIG_PATH, JSON.stringify(config));
       console.log(chalk.green(`\n✅ Language preference updated to: ${config.PREFERRED_LANGUAGE}`));
       console.log(chalk.white("Now run your query to see the change.\n"));
@@ -120,7 +192,7 @@ program
       if (!config.PREFERRED_LANGUAGE) {
         console.log("");
         const userLang = await ask("Step 2: What is your preferred language for the answers? (e.g., Gujarati, Hindi, Spanish): ");
-        config.PREFERRED_LANGUAGE = userLang.trim() || 'English';
+        config.PREFERRED_LANGUAGE = toTitleCase(userLang.trim()) || 'English';
       }
 
       fs.writeFileSync(CONFIG_PATH, JSON.stringify(config));
@@ -131,28 +203,47 @@ program
 
     // --- 5. INPUT VALIDATION & HELP MENU ---
     const isRandomMode = cmd === 'random';
+    // Title-case on load so older configs saved with lowercase still render correctly.
+    const prefLang = toTitleCase(config.PREFERRED_LANGUAGE) || 'English';
 
-    // If they didn't provide a topic AND they didn't type "random", show the help menu
+    // If they didn't provide a topic AND they didn't type "random", show the help menu.
     if (!options.topic && !isRandomMode) {
-      console.log(chalk.yellow.bold('\n🕉️  Harikrupa - Ancient wisdom for the modern era'));
-      console.log(chalk.white('\nUsage: ') + chalk.cyan('harikrupa -t "Your question here"'));
-      console.log(chalk.white.dim('Example: harikrupa -t "I feel anxious about my career"'));
+      const label = chalk.cyan;           // command text
+      const hint  = chalk.white.dim;      // description text
+      const head  = chalk.yellow.bold;    // section headers
+      const rule  = chalk.white.dim('─'.repeat(54));
 
-      console.log(chalk.white('\n🎲 Verse of the Day:'));
-      console.log(chalk.white('  harikrupa random            ') + chalk.white.dim('-> Get a random grounding verse'));
+      // Small helper to keep columns aligned regardless of command length.
+      // COL is sized to fit the longest command (~32 chars) plus a 2-space gutter.
+      const COL = 34;
+      const row = (cmdStr, desc) => '  ' + label(cmdStr.padEnd(COL)) + hint(desc);
 
-      console.log(chalk.white('\n⚙️  Settings:'));
-      console.log(chalk.white('  harikrupa --lang "Spanish"  ') + chalk.white.dim('-> Change output language'));
-      console.log(chalk.white('  harikrupa --key "gsk_"      ') + chalk.white.dim('-> Update your API key'));
+      console.log();
+      console.log(chalk.yellow.bold('🕉️  Harikrupa') + chalk.white.dim('  ·  Ancient wisdom for the modern era'));
+      console.log(rule);
 
-      console.log(chalk.cyan.bold('\n🔑 API Key Info:'));
-      console.log(chalk.white('Harikrupa uses Groq for lightning-fast AI translations.'));
-      console.log(chalk.white('You can get a ') + chalk.green.bold('100% FREE') + chalk.white(' API key with ') + chalk.yellow.bold('no credit card required') + chalk.white('.'));
-      console.log(chalk.white('Get it here: ') + chalk.blue.underline('https://console.groq.com/keys\n'));
+      console.log(head('\nASK'));
+      console.log(row('harikrupa -t "<question>"',  'Get guidance for your situation'));
+      console.log(row('harikrupa random',           'Draw a random verse of the day'));
+
+      console.log(head('\nSETTINGS'));
+      console.log(row('harikrupa --lang "<language>"',  'Change your output language'));
+      console.log(row('harikrupa --key "gsk_..."',  'Update your Groq API key'));
+      console.log(row('harikrupa --version',        'Show the installed version'));
+
+      console.log(head('\nEXAMPLES'));
+      console.log(row('harikrupa -t "I feel burnt out"', ''));
+      console.log(row('harikrupa -t "afraid of failing"', ''));
+      console.log(row('harikrupa --lang "Gujarati"',     ''));
+
+      console.log(head('\nCURRENT SETUP'));
+      console.log('  ' + hint('Language : ') + chalk.white(prefLang));
+      console.log('  ' + hint('API key  : ') + chalk.white(config.GROQ_API_KEY ? 'configured ✓' : 'not set'));
+
+      console.log(chalk.white.dim('\nFree Groq API key (no credit card): ') + chalk.blue.underline('https://console.groq.com/keys'));
+      console.log();
       return;
     }
-
-    const prefLang = config.PREFERRED_LANGUAGE || 'English';
 
     if (isRandomMode) {
       console.log(chalk.blue(`\nDrawing a random verse of the day in English & ${prefLang}...\n`));
@@ -195,6 +286,11 @@ program
 
       if (!bestMatch) throw new Error("Could not find a relevant verse.");
 
+      // Strip the 384-dim embedding vector before any downstream use:
+      // it's only needed for the similarity math above, and keeping it would
+      // pollute any log / JSON.stringify / future prompt-context that includes bestMatch.
+      const { embedding: _embedding, ...matchedVerse } = bestMatch;
+
       const gold = chalk.hex('#FFD700').bold;
       const subTitleColor = chalk.cyanBright.bold;
       const bodyText = chalk.white.dim;
@@ -205,21 +301,22 @@ program
         console.log(chalk.yellow('⚠️  No Internet Connection Detected.'));
         console.log(bodyText('Harikrupa is running in Offline Mode. AI mentor commentary is disabled, but here is your guiding verse:\n'));
 
-        console.log(gold(`Wisdom from Srimad Bhagavad Gita: Chapter ${bestMatch.chapter}, Verse ${bestMatch.verse}`));
+        console.log(gold(`Wisdom from Srimad Bhagavad Gita: Chapter ${matchedVerse.chapter}, Verse ${matchedVerse.verse}`));
         console.log(chalk.white("--------------------------------------------------"));
         console.log(subTitleColor("Sanskrit:"));
-        console.log(bodyText(bestMatch.sanskrit_verse));
+        console.log(bodyText(matchedVerse.sanskrit_verse));
 
         const localLangKey = prefLang.toLowerCase();
-        const excludedKeys = ['chapter', 'verse', 'sanskrit_verse', 'embedding'];
-        const availableLangs = Object.keys(bestMatch)
+        // `matchedVerse` no longer carries the embedding, so we only need to exclude metadata keys.
+        const excludedKeys = ['chapter', 'verse', 'sanskrit_verse'];
+        const availableLangs = Object.keys(matchedVerse)
           .filter(key => !excludedKeys.includes(key))
-          .map(lang => lang.charAt(0).toUpperCase() + lang.slice(1));
+          .map(toTitleCase);
 
         if (localLangKey !== 'english') {
           console.log(subTitleColor(`\n${prefLang}:`));
-          if (bestMatch[localLangKey]) {
-            console.log(bodyText(bestMatch[localLangKey]));
+          if (matchedVerse[localLangKey]) {
+            console.log(bodyText(matchedVerse[localLangKey]));
           } else {
             console.log(chalk.yellow(`⚠️ Offline Translation Unavailable`));
             console.log(bodyText(`Your local database currently only has pre-downloaded translations for: ${availableLangs.join(', ')}.`));
@@ -228,7 +325,7 @@ program
         }
 
         console.log(subTitleColor("\nEnglish:"));
-        console.log(bodyText(bestMatch.english));
+        console.log(bodyText(matchedVerse.english));
         console.log(chalk.white("--------------------------------------------------\n"));
         return;
       }
@@ -245,15 +342,27 @@ program
         ? "**Empathy:** [Provide a warm, grounding thought for the day in a detailed 3-line paragraph. Do not reference a specific struggle.]"
         : "**Empathy:** [Acknowledge their specific situation in a detailed 3-line paragraph]";
 
+      // Resolve the second section's heading.
+      // Mapped languages (Gujarati, Hindi, Spanish, ...) come back in native script and are used verbatim.
+      // Unmapped languages come back as "<Lang> Perspective" (English fallback) and the LLM is instructed
+      // below to translate that heading into the native script of that language.
+      const { heading: secondHeading, isNative: headingIsNative } = getNativePerspectiveHeading(prefLang);
+
+      // Heading instruction differs depending on whether we can provide the native-script form ourselves.
+      const headingInstruction = headingIsNative
+        ? `The second heading "### ${secondHeading}" is already written in the native script of ${prefLang}. Use it EXACTLY as given. Do not translate, romanize, rewrite, or append any English words (including "Perspective") to it.`
+        : `The second heading "### ${secondHeading}" is currently in English as a placeholder. Replace it with the equivalent phrase in the native script of ${prefLang} (meaning "${prefLang} Perspective" translated into ${prefLang}'s own script). If ${prefLang} is typically written in Latin script, keep the phrase in ${prefLang} but in Latin script. Use the translated heading consistently in BOTH places where the "${secondHeading}" heading appears below.`;
+
       const systemPrompt = `
       You are a wise mentor and Bhagavad Gita expert.
 
       User Input: ${simulatedUserInput}
-      Most Relevant Verse: Chapter ${bestMatch.chapter}, Verse ${bestMatch.verse}
-      Sanskrit Original: ${bestMatch.sanskrit_verse}
+      Most Relevant Verse: Chapter ${matchedVerse.chapter}, Verse ${matchedVerse.verse}
+      Sanskrit Original: ${matchedVerse.sanskrit_verse}
 
       YOUR TASK:
-      Divide your response into two exact sections: "### English Perspective" and "### ${prefLang} Perspective". 
+      Divide your response into two exact sections: "### English Perspective" and "### ${secondHeading}".
+      ${headingInstruction}
 
       Under "### English Perspective":
       **Sanskrit Verse:** [Provide original Sanskrit]
@@ -264,7 +373,7 @@ program
       **Practical Wisdom:** [Provide a modern mental hack or vibe shift in a detailed 2-3 line paragraph]
       **Next Action:** [Provide a high-energy practical step or reflection in a detailed 2-3 line paragraph]
 
-      Under "### ${prefLang} Perspective":
+      Under the second section heading:
       Translate ALL the subheaders themselves into ${prefLang} (e.g., **Verso en Sánscrito:**, **Empatía:**, etc.).
       1. Provide the Sanskrit under the translated Sanskrit subheader.
       2. Provide the Transliteration under the translated Transliteration subheader.
@@ -274,6 +383,7 @@ program
       STRICT RULES:
       - Do not cross translations (no English verse translation in the ${prefLang} section, and vice versa).
       - Ensure EVERY subheader is wrapped in double asterisks like **This**.
+      - The English heading must stay EXACTLY as "### English Perspective".
       - DO NOT use em-dashes (—) anywhere in your response. Use commas, colons, or periods instead.
       - Keep the language simple and avoid complex vocabulary.
       `;
@@ -285,7 +395,7 @@ program
       });
 
       // --- 8. FINAL OUTPUT ---
-      console.log(gold(`Wisdom from Srimad Bhagavad Gita: Chapter ${bestMatch.chapter}, Verse ${bestMatch.verse}`));
+      console.log(gold(`Wisdom from Srimad Bhagavad Gita: Chapter ${matchedVerse.chapter}, Verse ${matchedVerse.verse}`));
       console.log(chalk.white("--------------------------------------------------\n"));
 
       let rawResponse = chatCompletion.choices[0]?.message?.content || "";
