@@ -7,23 +7,20 @@
 
 Harikrupa is a lightweight, high-performance CLI tool designed to help developers navigate burnout, stress, and life's complex decisions. It utilizes a **Hybrid RAG (Retrieval-Augmented Generation) Architecture**: performing zero-latency semantic search locally, followed by high-speed inference via the Groq API to provide a customized, bilingual response.
 
-
-
 ---
 
 ## 🌟 Core Features
 
-* **Offline-First Vector Search:** Utilizes a local vector database and ONNX runtime to find the most relevant Bhagavad Gita verses instantly, without sending your raw queries to a search engine.
-* **Graceful Offline Fallback:** If you lose internet connectivity (e.g., on an airplane), Harikrupa won't crash. It seamlessly switches to Offline Mode, using the local vector search to print the raw Sanskrit and English verse directly to your terminal.
-* **Smart Language Detection:** When offline, the CLI intelligently reads the local vector database to see if a pre-compiled translation of your preferred language exists. If not, it gracefully lists the available offline languages.
-* **Ultra-Low Latency Inference:** When online, Harikrupa integrates with the Groq API to generate highly contextual responses at blazing speeds.
-* **Bilingual Output:** Receive dynamic AI guidance in English alongside your preferred local language (e.g., Gujarati, Hindi, Spanish).
+* **🧠 Smart Semantic Search:** Uses a local vector database to find the perfect matching Bhagavad Gita verse for your specific situation.
+* **🎲 Verse of the Day:** Use the `random` command for a quick grounding thought without needing to ask a specific question.
+* **🌍 Bilingual Perspective:** Get structured wisdom in English and your preferred language (Spanish, Gujarati, Hindi, etc.) simultaneously.
+* **🎨 Aesthetic UI:** Fully color-coded terminal output with Gold perspectives, Cyan subheaders, and dimmed body text for better focus.
+* **📴 Offline-First:** Works anywhere. If you're off-grid, it safely falls back to local translations so your wisdom is never out of reach.
+* **💸 100% Free AI:** Uses Groq's LPU technology for near-instant answers. No credit card or subscription required.
 
 ---
 
 ## 🚀 Installation
-
-Install the package globally via npm to access the CLI from any terminal:
 
 ```bash
 npm install -g harikrupa
@@ -33,55 +30,47 @@ npm install -g harikrupa
 
 ---
 
-## 🛠️ Initial Setup
+## 🛠️ Frictionless Setup
 
-After installation, run the tool without any flags to launch the interactive setup wizard:
+Just run the tool to start the setup wizard:
 
 ```bash
 harikrupa
 ```
 
-The wizard will guide you through:
-1. Connecting your free Groq API key (from [console.groq.com](https://console.groq.com/keys)).
-2. Setting your preferred language for the translated wisdom.
+**Step 1: Get your Free API Key** The CLI will display the Groq console link. Simply **Press ENTER** to automatically open it in your browser. Copy the key and paste it back into the terminal. No manual URL copying required!
 
-*(Your API key and preferences are stored securely and locally on your machine at `~/.harikrupa.json`)*
+**Step 2: Set your Language** Tell Harikrupa which language you prefer for your bilingual translations.
 
 ---
 
 ## 📖 Usage
 
-Ask any question about life, work, or stress using the `-t` or `--topic` flag:
-
+### Ask a Question
+Share your current struggle or situation:
 ```bash
-harikrupa -t "I am completely burnt out from this release cycle"
+harikrupa -t "I am feeling overwhelmed with this release cycle"
 ```
 
-### Additional Commands
+### Get a Random Verse
+For daily grounding and reflection:
+```bash
+harikrupa random
+```
 
-* **Change Language Preference:** ```bash
-  harikrupa --lang "Gujarati"
-  ```
-* **Update API Key Manually:** ```bash
-  harikrupa --set-key "gsk_your_new_api_key_here"
-  ```
-* **Check Version:** ```bash
-  harikrupa --version
-  ```
+### Manage Settings
+* **Update Language:** `harikrupa --lang "Gujarati"`
+* **Update API Key:** `harikrupa --key "gsk_..."`
+* **Help Menu:** `harikrupa` (with no arguments)
 
 ---
 
-## 🏗️ Architecture & Tech Stack
+## 🏗️ Architecture
 
-Harikrupa operates in a two-step "relay" to optimize for privacy, speed, and reliability:
-
-### Step 1: Always Local (Semantic Search)
-* **Embedding Extraction:** `@xenova/transformers` (`all-MiniLM-L6-v2`) runs entirely on your local machine to convert your query into a mathematical vector.
-* **Vector Matching:** Cosine similarity is calculated against a local pre-computed JSON database of verse embeddings to find the perfect matching verse.
-
-### Step 2: The Network Split
-* **If Online:** The top-matching verse and your query are sent to **Groq** to generate a highly contextual, structured AI mentor response in your preferred language.
-* **If Offline:** The CLI detects the network drop and safely bypasses the AI generation. It dynamically queries the local database for available translations and prints the raw matching verse directly to your terminal.
+Harikrupa operates on a unique "relay" system:
+1. **Local Extraction:** Your query is converted into a vector locally using `@xenova/transformers`.
+2. **Local Matching:** It finds the best verse match in your local database using Cosine Similarity.
+3. **Cloud Inference:** Only the selected verse and query are sent to Groq for mentor commentary, ensuring maximum speed and privacy.
 
 ---
 

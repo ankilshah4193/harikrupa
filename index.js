@@ -8,6 +8,7 @@ import os from 'os';
 import readline from 'readline';
 import dns from 'dns';
 import { fileURLToPath } from 'url';
+import { exec } from 'child_process';
 import { pipeline, cos_sim } from '@xenova/transformers';
 import Groq from 'groq-sdk';
 
@@ -26,6 +27,12 @@ const ask = (question) => {
   }));
 };
 
+// Helper to open URLs cross-platform
+const openBrowser = (url) => {
+  const command = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
+  exec(`${command} ${url}`, () => {});
+};
+
 // Helper to check internet connection
 const isOnline = () => {
   return new Promise((resolve) => {
@@ -36,12 +43,13 @@ const isOnline = () => {
 };
 
 program
-  .version('3.0.8')
+  .version('4.0.0')
   .description('Ancient wisdom for the modern era (English + Preferred Language).')
+  .argument('[cmd]', 'Run a specific command (e.g., "random")') // <--- Added argument support
   .option('-t, --topic <query>', 'Ask your life question in English')
   .option('--lang <language>', 'Change your preferred language preference')
-  .option('--set-key <key>', 'Update your Groq API key manually')
-  .action(async (options) => {
+  .option('--key <key>', 'Update your Groq API key manually')
+  .action(async (cmd, options) => {
     
     // --- 1. LOAD CONFIGURATION ---
     let config = { GROQ_API_KEY: null, PREFERRED_LANGUAGE: null };
@@ -62,9 +70,18 @@ program
       return;
     }
 
-    // --- 3. SET API KEY MANUALLY ---
-    if (options.setKey) {
-      config.GROQ_API_KEY = options.setKey.trim();
+    // --- 3. SET API KEY MANUALLY & VALIDATE ---
+    if (options.key) {
+      const newKey = options.key.trim();
+      if (!newKey.startsWith('gsk_')) {
+        console.log(chalk.red('\n❌ Oops! That does not look like a valid Groq API key.'));
+        console.log(chalk.white('Valid keys usually start with "gsk_".'));
+        console.log(chalk.white('Please generate a new one at: ') + chalk.blue.underline('https://console.groq.com/keys'));
+        console.log(chalk.white('Once you have it, try running this command again:'));
+        console.log(chalk.cyan('harikrupa --key "your_new_key_here"\n'));
+        return;
+      }
+      config.GROQ_API_KEY = newKey;
       fs.writeFileSync(CONFIG_PATH, JSON.stringify(config));
       console.log(chalk.green(`\n✅ API Key updated successfully.\n`));
       return;
@@ -76,106 +93,142 @@ program
       console.log(chalk.white("Let's get you connected to the Gita in 2 quick steps.\n"));
 
       if (!config.GROQ_API_KEY) {
-        console.log(chalk.yellow("Step 1: Get your free API key from Groq"));
-        console.log(chalk.white("Visit: ") + chalk.blue.underline("https://console.groq.com/keys\n"));
-        const userKey = await ask("Paste your API key here: ");
-        config.GROQ_API_KEY = userKey.trim();
+        console.log(chalk.yellow.bold("Step 1: Get your FREE API key from Groq (No credit card required!)"));
+        console.log(chalk.white("Get your key at:"));
+        console.log(chalk.blue.underline("https://console.groq.com/keys\n"));
+        
+        let userKey = await ask(chalk.white("Press ENTER to open in the browser... "));
+        
+        if (userKey.trim() === '') {
+          openBrowser('https://console.groq.com/keys');
+          userKey = await ask(chalk.cyan("\nPaste your API key here (starts with 'gsk_'): "));
+        }
+        
+        const cleanKey = userKey.trim();
+        
+        if (!cleanKey.startsWith('gsk_')) {
+          console.log(chalk.red('\n❌ Oops! The API key you entered seems invalid (it should start with "gsk_").'));
+          console.log(chalk.white('Don\'t worry! You can generate a new one for free at https://console.groq.com/keys'));
+          console.log(chalk.white('Once you have it, just run this command to save it and skip setup:'));
+          console.log(chalk.cyan('harikrupa --key "your_new_key_here"\n'));
+          return; 
+        }
+        
+        config.GROQ_API_KEY = cleanKey;
       }
 
       if (!config.PREFERRED_LANGUAGE) {
+        console.log(""); 
         const userLang = await ask("Step 2: What is your preferred language for the answers? (e.g., Gujarati, Hindi, Spanish): ");
         config.PREFERRED_LANGUAGE = userLang.trim() || 'English';
       }
 
-      if (config.GROQ_API_KEY.startsWith('gsk_')) {
-        fs.writeFileSync(CONFIG_PATH, JSON.stringify(config));
-        console.log(chalk.green("\n✅ Setup Complete! All settings saved."));
-        console.log(chalk.white("Now try: ") + chalk.yellow('harikrupa -t "I feel overwhelmed"') + "\n");
-        return;
-      } else {
-        console.log(chalk.red("\n❌ Invalid API key format. Please run 'harikrupa' again to restart setup.\n"));
-        return;
-      }
-    }
-
-    // --- 5. INPUT VALIDATION ---
-    if (!options.topic) {
-      console.log(chalk.yellow('\nUsage: harikrupa -t "Your question in English"'));
-      console.log(chalk.white.dim('Try: harikrupa --lang "Gujarati" to change languages.\n'));
+      fs.writeFileSync(CONFIG_PATH, JSON.stringify(config));
+      console.log(chalk.green("\n✅ Setup Complete! All settings saved."));
+      console.log(chalk.white("Now try: ") + chalk.cyan('harikrupa -t "I feel overwhelmed"') + "\n");
       return;
     }
 
-    // Safety check: Fixes the "English & null" bug
+    // --- 5. INPUT VALIDATION & HELP MENU ---
+    const isRandomMode = cmd === 'random';
+
+    // If they didn't provide a topic AND they didn't type "random", show the help menu
+    if (!options.topic && !isRandomMode) {
+      console.log(chalk.yellow.bold('\n🕉️  Harikrupa - Ancient wisdom for the modern era'));
+      console.log(chalk.white('\nUsage: ') + chalk.cyan('harikrupa -t "Your question here"'));
+      console.log(chalk.white.dim('Example: harikrupa -t "I feel anxious about my career"'));
+      
+      console.log(chalk.white('\n🎲 Verse of the Day:'));
+      console.log(chalk.white('  harikrupa random            ') + chalk.white.dim('-> Get a random grounding verse'));
+
+      console.log(chalk.white('\n⚙️  Settings:'));
+      console.log(chalk.white('  harikrupa --lang "Spanish"  ') + chalk.white.dim('-> Change output language'));
+      console.log(chalk.white('  harikrupa --key "gsk_"      ') + chalk.white.dim('-> Update your API key'));
+      
+      console.log(chalk.cyan.bold('\n🔑 API Key Info:'));
+      console.log(chalk.white('Harikrupa uses Groq for lightning-fast AI translations.'));
+      console.log(chalk.white('You can get a ') + chalk.green.bold('100% FREE') + chalk.white(' API key with ') + chalk.yellow.bold('no credit card required') + chalk.white('.'));
+      console.log(chalk.white('Get it here: ') + chalk.blue.underline('https://console.groq.com/keys\n'));
+      return;
+    }
+
     const prefLang = config.PREFERRED_LANGUAGE || 'English';
 
-    console.log(chalk.blue(`\nReflecting on your situation in English & ${prefLang}...\n`));
+    if (isRandomMode) {
+      console.log(chalk.blue(`\nDrawing a random verse of the day in English & ${prefLang}...\n`));
+    } else {
+      console.log(chalk.blue(`\nReflecting on your situation in English & ${prefLang}...\n`));
+    }
 
     try {
-      // --- 6. LOCAL SEMANTIC SEARCH (Always runs, even offline) ---
+      // --- 6. DB LOAD & VERSE SELECTION ---
       if (!fs.existsSync(DB_PATH)) {
         throw new Error("Local database missing. Ensure 'data/verse_embeddings.json' exists.");
       }
 
-      // Initialize local embedding model
-      const extractor = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
-      const queryOutput = await extractor(options.topic, { pooling: 'mean', normalize: true });
-      const queryVector = queryOutput.tolist()[0];
-
       const verses = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
-
       let bestMatch = null;
-      let highestScore = -1;
 
-      for (const verse of verses) {
-        const score = cos_sim(queryVector, verse.embedding);
-        if (score > highestScore) {
-          highestScore = score;
-          bestMatch = verse;
+      // If 'random', just grab a random array index. Otherwise, do the math!
+      if (isRandomMode) {
+        const randomIndex = Math.floor(Math.random() * verses.length);
+        bestMatch = verses[randomIndex];
+      } else {
+        const extractor = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
+        const queryOutput = await extractor(options.topic, { pooling: 'mean', normalize: true });
+        const queryVector = queryOutput.tolist()[0];
+
+        let highestScore = -1;
+        for (const verse of verses) {
+          const score = cos_sim(queryVector, verse.embedding);
+          if (score > highestScore) {
+            highestScore = score;
+            bestMatch = verse;
+          }
         }
-      }
 
-      // Threshold Fallback
-      const MIN_THRESHOLD = 0.25; 
-      if (highestScore < MIN_THRESHOLD) {
-        bestMatch = verses.find(v => String(v.chapter) === "18" && String(v.verse) === "66") || verses[0];
+        const MIN_THRESHOLD = 0.25; 
+        if (highestScore < MIN_THRESHOLD) {
+          bestMatch = verses.find(v => String(v.chapter) === "18" && String(v.verse) === "66") || verses[0];
+        }
       }
 
       if (!bestMatch) throw new Error("Could not find a relevant verse.");
 
+      const gold = chalk.hex('#FFD700').bold; 
+      const subTitleColor = chalk.cyanBright.bold;
+      const bodyText = chalk.white.dim;
+
       // --- OFFLINE FALLBACK CHECK ---
       const online = await isOnline();
       if (!online) {
-        // If offline, print the raw database verse and exit gracefully
         console.log(chalk.yellow('⚠️  No Internet Connection Detected.'));
-        console.log(chalk.white('Harikrupa is running in Offline Mode. AI mentor commentary is disabled, but here is your guiding verse:\n'));
+        console.log(bodyText('Harikrupa is running in Offline Mode. AI mentor commentary is disabled, but here is your guiding verse:\n'));
         
-        console.log(chalk.green.bold(`Wisdom from Srimad Bhagavad Gita: Chapter ${bestMatch.chapter}, Verse ${bestMatch.verse}`));
+        console.log(gold(`Wisdom from Srimad Bhagavad Gita: Chapter ${bestMatch.chapter}, Verse ${bestMatch.verse}`));
         console.log(chalk.white("--------------------------------------------------"));
-        console.log(chalk.cyan("Sanskrit:"));
-        console.log(chalk.white(bestMatch.sanskrit_verse));
+        console.log(subTitleColor("Sanskrit:"));
+        console.log(bodyText(bestMatch.sanskrit_verse));
         
-        // Dynamically pull the preferred language from the local JSON if it exists
         const localLangKey = prefLang.toLowerCase();
-        
-        // Find available languages by filtering out non-language keys
         const excludedKeys = ['chapter', 'verse', 'sanskrit_verse', 'embedding'];
         const availableLangs = Object.keys(bestMatch)
             .filter(key => !excludedKeys.includes(key))
-            .map(lang => lang.charAt(0).toUpperCase() + lang.slice(1)); // Capitalize them
+            .map(lang => lang.charAt(0).toUpperCase() + lang.slice(1));
 
         if (localLangKey !== 'english') {
-            console.log(chalk.cyan(`\n${prefLang}:`));
+            console.log(subTitleColor(`\n${prefLang}:`));
             if (bestMatch[localLangKey]) {
-                console.log(chalk.white(bestMatch[localLangKey]));
+                console.log(bodyText(bestMatch[localLangKey]));
             } else {
                 console.log(chalk.yellow(`⚠️ Offline Translation Unavailable`));
-                console.log(chalk.white.dim(`Your local database currently only has pre-downloaded translations for: ${availableLangs.join(', ')}.`));
-                console.log(chalk.white.dim(`(Please connect to the internet so the AI can dynamically translate this into ${prefLang})`));
+                console.log(bodyText(`Your local database currently only has pre-downloaded translations for: ${availableLangs.join(', ')}.`));
+                console.log(bodyText(`(Please connect to the internet so the AI can dynamically translate this into ${prefLang})`));
             }
         }
 
-        console.log(chalk.cyan("\nEnglish:"));
-        console.log(chalk.white(bestMatch.english));
+        console.log(subTitleColor("\nEnglish:"));
+        console.log(bodyText(bestMatch.english));
         console.log(chalk.white("--------------------------------------------------\n"));
         return; 
       }
@@ -183,25 +236,46 @@ program
       // --- 7. GROQ BILINGUAL MENTOR PROMPT ---
       const groq = new Groq({ apiKey: config.GROQ_API_KEY });
       
-      const systemPrompt = `
-      You are a wise mentor and Bhagavad Gita expert. Your goal is to guide the user using the Gita's wisdom, adapting your tone based on whether they are sharing a struggle, asking a question, or simply offering a greeting or devotion.
+      // Determine what to tell the AI based on the mode
+      const simulatedUserInput = isRandomMode 
+        ? "I would like a random verse of the day for general grounding and reflection." 
+        : `"${options.topic}"`;
 
-      User Input (English): "${options.topic}"
+      const empathyInstructions = isRandomMode
+        ? "**Empathy:** [Provide a warm, grounding thought for the day in 1-2 lines. Do not reference a specific struggle.]"
+        : "**Empathy:** [Acknowledge their specific situation in 1-2 lines]";
+
+      const systemPrompt = `
+      You are a wise mentor and Bhagavad Gita expert.
+
+      User Input: ${simulatedUserInput}
       Most Relevant Verse: Chapter ${bestMatch.chapter}, Verse ${bestMatch.verse}
       Sanskrit Original: ${bestMatch.sanskrit_verse}
 
       YOUR TASK:
-      1. Analyze the user input. If it is a greeting or devotional phrase (like "Jai Shree Ram", "Hello"), acknowledge it respectfully with warmth and shared devotion. If the user shares a struggle or life problem, acknowledge their situation with genuine empathy. Do not invent a struggle if the user hasn't mentioned one. (1-Line Limit)
-      2. Connect the context. If the user shared a struggle, briefly explain the historical or cosmic narrative from the Gita that mirrors their problem. If it was a greeting or general statement, briefly explain how this specific verse reflects the spirit of their input or the path of devotion and duty. (1-Line Limit)
-      3. Provide the original Sanskrit verse from the Srimad Bhagavad Gita. Include the phonetic transliteration (IAST) and translation in ${prefLang} so the user can connect with the sound and vibration of the words, keeping the "source of truth" at the center of the answer.
-      4. Explain in exactly 2-3 lines why this specific wisdom is practical for the modern day. Reframe deep philosophy into a "vibe shift", mental hack, or grounding thought that the user can apply today. Frame sentences properly. (2-3 Lines Limit)
-      5. Provide 2-3 lines of instruction on a physical or mental action the user can perform next. Ensure the tone is high-energy, optimistic, and focused on practical alignment (whether it is an action to solve a problem or a reflective practice for devotion). Frame sentences properly. (2-3 Lines Limit)
+      Divide your response into two exact sections: "### English Perspective" and "### ${prefLang} Perspective". 
+
+      Under "### English Perspective":
+      **Sanskrit Verse:** [Provide original Sanskrit]
+      **Transliteration (IAST):** [Provide phonetic text]
+      **Translation (English):** [Provide ONLY the English translation]
+      ${empathyInstructions}
+      **Connection:** [Explain the cosmic narrative from the Gita in 1-2 lines]
+      **Practical Wisdom:** [Provide a modern mental hack or vibe shift in 1-2 lines]
+      **Next Action:** [Provide a high-energy practical step or reflection in 1-2 lines]
+
+      Under "### ${prefLang} Perspective":
+      Translate ALL the subheaders themselves into ${prefLang} (e.g., **Verso en Sánscrito:**, **Empatía:**, etc.).
+      1. Provide the Sanskrit under the translated Sanskrit subheader.
+      2. Provide the Transliteration under the translated Transliteration subheader.
+      3. Provide ONLY the ${prefLang} translation of the verse under the translated Translation subheader.
+      4. Provide the fully translated commentary sections under their respective translated subheaders.
 
       STRICT RULES:
+      - Do not cross translations (no English verse translation in the ${prefLang} section, and vice versa).
+      - Ensure EVERY subheader is wrapped in double asterisks like **This**.
       - DO NOT use em-dashes (—) anywhere in your response. Use commas, colons, or periods instead.
-      - Keep the language simple. Avoid complex vocabulary.
-      - You must provide the entire response twice: First in English, then in ${prefLang}.
-      - Use Markdown headers exactly like this: "### English Perspective" and "### ${prefLang} Perspective".
+      - Keep the language simple and avoid complex vocabulary.
       `;
 
       const chatCompletion = await groq.chat.completions.create({
@@ -211,17 +285,49 @@ program
       });
 
       // --- 8. FINAL OUTPUT ---
-      console.log(chalk.yellow.bold(`Wisdom from Srimad Bhagavad Gita: Chapter ${bestMatch.chapter}, Verse ${bestMatch.verse}`));
+      console.log(gold(`Wisdom from Srimad Bhagavad Gita: Chapter ${bestMatch.chapter}, Verse ${bestMatch.verse}`));
       console.log(chalk.white("--------------------------------------------------\n"));
-      console.log(chalk.white(chatCompletion.choices[0]?.message?.content));
+      
+      let rawResponse = chatCompletion.choices[0]?.message?.content || "";
+
+      let coloredResponse = rawResponse.split('\n').map(line => {
+        if (line.match(/^###\s+/)) {
+          return gold(line);
+        }
+        
+        if (line.trim() === '') {
+          return line;
+        }
+
+        if (line.match(/\*\*(.*?)\*\*/)) {
+          let parts = line.split(/(\*\*.*?\*\*)/g);
+          return parts.map(part => {
+            if (part.startsWith('**') && part.endsWith('**')) {
+              const cleanText = part.replace(/\*\*/g, '');
+              return subTitleColor(cleanText); 
+            } else if (part.trim() !== '') {
+              return bodyText(part); 
+            }
+            return part;
+          }).join('');
+        }
+        
+        return bodyText(line);
+      }).join('\n');
+
+      console.log(coloredResponse);
+      
       console.log(chalk.white("\n--------------------------------------------------\n"));
 
     } catch (error) {
       console.log(chalk.red('\n❌ System Error:'));
       console.error(chalk.white(error.message));
       
-      if (error.message.includes('401')) {
-        console.log(chalk.yellow("\nTip: Your API key is invalid. Run 'harikrupa --set-key' to update it."));
+      if (error.message.includes('401') || error.message.includes('invalid') || error.message.includes('API key')) {
+        console.log(chalk.yellow("\n⚠️  It looks like your current Groq API key is invalid or expired."));
+        console.log(chalk.white("You can easily generate a new, free key at: ") + chalk.blue.underline("https://console.groq.com/keys"));
+        console.log(chalk.white("Then, update it in Harikrupa by running:"));
+        console.log(chalk.cyan('harikrupa --key "your_new_key_here"\n'));
       } else if (error.message.includes('fetch') || error.message.includes('network')) {
         console.log(chalk.yellow("\nTip: Check your internet connection. We need it to talk to Groq."));
       }
