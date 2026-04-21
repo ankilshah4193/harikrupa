@@ -234,7 +234,7 @@ const isOnline = (timeoutMs = 1500) => {
 };
 
 program
-  .version('4.0.3')
+  .version('4.0.4')
   .description('Ancient wisdom for the modern era (English + Preferred Language).')
   .argument('[cmd]', 'Run a specific command (e.g., "random")') // <--- Added argument support
   .option('-t, --topic <query>', 'Ask your life question in English')

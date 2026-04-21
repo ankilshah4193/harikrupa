@@ -1,8 +1,8 @@
-# 🙏 Harikrupa
+# Harikrupa
 
-**Ancient wisdom dynamically tailored to modern developer burnout.**
+**🙏 Ancient wisdom dynamically tailored to modern developer burnout.**
 
-[![npm version](https://badge.fury.io/js/harikrupa.svg)](https://www.npmjs.com/package/harikrupa)
+[![npm version](https://badge.fury.io/js/harikrupa.svg?v=4)](https://www.npmjs.com/package/harikrupa)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Harikrupa is a lightweight, high-performance CLI tool designed to help developers navigate burnout, stress, and life's complex decisions. It utilizes a **Hybrid RAG (Retrieval-Augmented Generation) Architecture**: performing zero-latency semantic search locally, followed by high-speed inference via the Groq API to provide a customized, bilingual response.
@@ -105,4 +105,3 @@ Harikrupa operates on a unique "relay" system:
 ## 📝 License
 
 Distributed under the MIT License. See `LICENSE` for more information.
-```
