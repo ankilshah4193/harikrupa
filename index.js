@@ -88,6 +88,126 @@ const openBrowser = (url) => {
   exec(`${command} ${url}`, () => { });
 };
 
+const GROQ_KEYS_URL = 'https://console.groq.com/keys';
+
+// Interactive "press ENTER → open browser → paste key → validate" flow.
+// Shared by the onboarding wizard and `harikrupa --key` (invoked with no value).
+// Returns the cleaned key on success, or null if the user typed an invalid key.
+const promptForGroqKey = async () => {
+  console.log(chalk.yellow.bold("Get your FREE API key from Groq (no credit card required!)"));
+  console.log(chalk.white("Key page: ") + chalk.blue.underline(GROQ_KEYS_URL) + "\n");
+
+  let userKey = await ask(chalk.white("Press ENTER to open it in your browser (or paste the key directly): "));
+
+  if (userKey.trim() === '') {
+    openBrowser(GROQ_KEYS_URL);
+    userKey = await ask(chalk.cyan("\nPaste your API key here (starts with 'gsk_'): "));
+  }
+
+  const cleanKey = userKey.trim();
+  if (!cleanKey.startsWith('gsk_')) {
+    console.log(chalk.red('\n❌ That does not look like a valid Groq API key (expected it to start with "gsk_").'));
+    console.log(chalk.white('Generate a new one at: ') + chalk.blue.underline(GROQ_KEYS_URL));
+    console.log(chalk.white('Then run: ') + chalk.cyan('harikrupa --key "your_new_key_here"') + '\n');
+    return null;
+  }
+  return cleanKey;
+};
+
+// Classifies an error and prints tailored, actionable guidance.
+// Always sets process.exitCode = 1 so the shell knows the command failed.
+//
+// Categories:
+//   auth     → Groq rejected the key (401/403, "Invalid API Key", etc.)
+//   rate     → Groq rate-limited us (429)
+//   network  → DNS / fetch / ECONN... (can't reach Groq)
+//   db       → Local embedding DB missing, corrupt, or empty
+//   model    → @xenova/transformers failed (usually first-run download issues)
+//   empty    → Groq returned an empty response body
+//   unknown  → everything else
+const classifyError = (error) => {
+  const msg = (error?.message || String(error)).toLowerCase();
+  const status = error?.status ?? error?.response?.status;
+
+  if (status === 401 || status === 403 || msg.includes('invalid api key') || msg.includes('unauthorized')) return 'auth';
+  if (status === 429 || msg.includes('rate limit') || msg.includes('too many requests')) return 'rate';
+  if (msg.includes('enotfound') || msg.includes('econnrefused') || msg.includes('econnreset') ||
+      msg.includes('etimedout') || msg.includes('fetch failed') || msg.includes('network')) return 'network';
+  if (msg.includes('local database') || msg.includes('verse_embeddings') ||
+      msg.includes('unexpected token') && msg.includes('json')) return 'db';
+  if (msg.includes('xenova') || msg.includes('transformers') || msg.includes('onnxruntime') ||
+      msg.includes('model') && msg.includes('download')) return 'model';
+  if (msg.includes('empty response') || msg.includes('no content')) return 'empty';
+  return 'unknown';
+};
+
+const reportError = (error, { verbose = false } = {}) => {
+  process.exitCode = 1;
+  const category = classifyError(error);
+
+  // Ordered so related guidance reads together: headline → explanation → fix.
+  switch (category) {
+    case 'auth':
+      console.log(chalk.red('\n❌ Your Groq API key was rejected.'));
+      console.log(chalk.white('The key is likely invalid, expired, or has been revoked.\n'));
+      console.log(chalk.yellow.bold('What to do:'));
+      console.log(chalk.white('  1. Generate a new free key: ') + chalk.blue.underline(GROQ_KEYS_URL));
+      console.log(chalk.white('  2. Save it: ') + chalk.cyan('harikrupa --key "gsk_..."'));
+      console.log(chalk.white('     ') + chalk.dim('…or just run ') + chalk.cyan('harikrupa --key') + chalk.dim(' and we will walk you through it.\n'));
+      break;
+
+    case 'rate':
+      console.log(chalk.red('\n❌ Groq is rate-limiting this key right now.'));
+      console.log(chalk.white('You have sent a lot of requests in a short window. Wait a minute and try again.\n'));
+      console.log(chalk.dim('If this keeps happening, check your usage at ') + chalk.blue.underline('https://console.groq.com/settings/limits\n'));
+      break;
+
+    case 'network':
+      console.log(chalk.red('\n❌ Cannot reach Groq.'));
+      console.log(chalk.white('Looks like a network issue. A few things to check:\n'));
+      console.log(chalk.white('  • Internet connection is live'));
+      console.log(chalk.white('  • No VPN / corporate firewall blocking ') + chalk.dim('api.groq.com'));
+      console.log(chalk.white('  • ') + chalk.dim('https://status.groq.com') + chalk.white(' is green'));
+      console.log(chalk.dim('\nTip: Harikrupa also works offline — you will get the verse, just without the AI commentary.\n'));
+      break;
+
+    case 'db':
+      console.log(chalk.red('\n❌ Local verse database is missing or corrupt.'));
+      console.log(chalk.white('This file ships with the package, so something went wrong during install.\n'));
+      console.log(chalk.yellow.bold('Fix it by reinstalling:'));
+      console.log(chalk.cyan('  npm uninstall -g harikrupa'));
+      console.log(chalk.cyan('  npm install -g harikrupa\n'));
+      console.log(chalk.dim('If the problem continues, please open an issue: ') + chalk.blue.underline('https://github.com/ankilshah4193/harikrupa/issues') + '\n');
+      break;
+
+    case 'model':
+      console.log(chalk.red('\n❌ The local AI model failed to load.'));
+      console.log(chalk.white('On first run, Harikrupa downloads a tiny (~25 MB) embedding model to your cache.\n'));
+      console.log(chalk.yellow.bold('What to try:'));
+      console.log(chalk.white('  • Make sure you have an internet connection for the initial download'));
+      console.log(chalk.white('  • Clear the cache and retry: ') + chalk.cyan('rm -rf ~/.cache/huggingface'));
+      console.log(chalk.white('  • Or use: ') + chalk.cyan('harikrupa random') + chalk.dim(' — it skips the model entirely.\n'));
+      break;
+
+    case 'empty':
+      console.log(chalk.red('\n❌ Groq returned an empty response.'));
+      console.log(chalk.white('This is unusual — usually a transient hiccup on their end. Try again in a moment.\n'));
+      break;
+
+    default:
+      console.log(chalk.red('\n❌ Something went wrong:'));
+      console.log(chalk.white('  ' + (error?.message || String(error))) + '\n');
+      console.log(chalk.dim('If this keeps happening, please open an issue with the message above:'));
+      console.log(chalk.dim('  ') + chalk.blue.underline('https://github.com/ankilshah4193/harikrupa/issues') + '\n');
+      break;
+  }
+
+  if (verbose && error?.stack) {
+    console.log(chalk.dim('\n--- stack trace ---'));
+    console.log(chalk.dim(error.stack));
+  }
+};
+
 // Helper to check internet connection.
 // Uses a TCP probe to Cloudflare DNS (1.1.1.1:53) rather than a DNS hostname lookup:
 //   - Works in regions where Google is blocked.
@@ -114,12 +234,12 @@ const isOnline = (timeoutMs = 1500) => {
 };
 
 program
-  .version('4.0.2')
+  .version('4.0.3')
   .description('Ancient wisdom for the modern era (English + Preferred Language).')
   .argument('[cmd]', 'Run a specific command (e.g., "random")') // <--- Added argument support
   .option('-t, --topic <query>', 'Ask your life question in English')
   .option('--lang <language>', 'Change your preferred language preference')
-  .option('--key <key>', 'Update your Groq API key manually')
+  .option('--key [key]', 'Update your Groq API key (omit value to open browser)')
   .action(async (cmd, options) => {
 
     // --- 1. LOAD CONFIGURATION ---
@@ -128,6 +248,9 @@ program
       try {
         config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
       } catch (e) {
+        // Don't silently swallow: tell the user so they aren't confused when the wizard re-runs.
+        console.log(chalk.yellow(`\n⚠️  Your config file appears to be corrupt: ${CONFIG_PATH}`));
+        console.log(chalk.white('Resetting it and restarting the setup wizard...\n'));
         config = { GROQ_API_KEY: null, PREFERRED_LANGUAGE: null };
       }
     }
@@ -142,20 +265,31 @@ program
       return;
     }
 
-    // --- 3. SET API KEY MANUALLY & VALIDATE ---
-    if (options.key) {
-      const newKey = options.key.trim();
-      if (!newKey.startsWith('gsk_')) {
-        console.log(chalk.red('\n❌ Oops! That does not look like a valid Groq API key.'));
-        console.log(chalk.white('Valid keys usually start with "gsk_".'));
-        console.log(chalk.white('Please generate a new one at: ') + chalk.blue.underline('https://console.groq.com/keys'));
-        console.log(chalk.white('Once you have it, try running this command again:'));
-        console.log(chalk.cyan('harikrupa --key "your_new_key_here"\n'));
-        return;
+    // --- 3. SET OR UPDATE API KEY ---
+    // `--key gsk_...` supplies a value (options.key is the string).
+    // `--key` alone supplies no value (options.key is `true` per Commander's convention).
+    // In the latter case, walk the user through the same "open browser → paste" flow the wizard uses.
+    if (options.key !== undefined) {
+      let cleanKey;
+
+      if (options.key === true || String(options.key).trim() === '') {
+        console.log(chalk.green.bold("\n🔑 Update Groq API Key\n"));
+        cleanKey = await promptForGroqKey();
+        if (!cleanKey) { process.exitCode = 1; return; } // helper already printed guidance
+      } else {
+        cleanKey = String(options.key).trim();
+        if (!cleanKey.startsWith('gsk_')) {
+          console.log(chalk.red('\n❌ That does not look like a valid Groq API key.'));
+          console.log(chalk.white('Valid keys start with "gsk_". Generate one at: ') + chalk.blue.underline(GROQ_KEYS_URL));
+          console.log(chalk.white('Or run ') + chalk.cyan('harikrupa --key') + chalk.white(' with no value to open the browser for you.\n'));
+          process.exitCode = 1;
+          return;
+        }
       }
-      config.GROQ_API_KEY = newKey;
+
+      config.GROQ_API_KEY = cleanKey;
       fs.writeFileSync(CONFIG_PATH, JSON.stringify(config));
-      console.log(chalk.green(`\n✅ API Key updated successfully.\n`));
+      console.log(chalk.green(`\n✅ API key updated successfully.\n`));
       return;
     }
 
@@ -165,33 +299,15 @@ program
       console.log(chalk.white("Let's get you connected to the Gita in 2 quick steps.\n"));
 
       if (!config.GROQ_API_KEY) {
-        console.log(chalk.yellow.bold("Step 1: Get your FREE API key from Groq (No credit card required!)"));
-        console.log(chalk.white("Get your key at:"));
-        console.log(chalk.blue.underline("https://console.groq.com/keys\n"));
-
-        let userKey = await ask(chalk.white("Press ENTER to open in the browser... "));
-
-        if (userKey.trim() === '') {
-          openBrowser('https://console.groq.com/keys');
-          userKey = await ask(chalk.cyan("\nPaste your API key here (starts with 'gsk_'): "));
-        }
-
-        const cleanKey = userKey.trim();
-
-        if (!cleanKey.startsWith('gsk_')) {
-          console.log(chalk.red('\n❌ Oops! The API key you entered seems invalid (it should start with "gsk_").'));
-          console.log(chalk.white('Don\'t worry! You can generate a new one for free at https://console.groq.com/keys'));
-          console.log(chalk.white('Once you have it, just run this command to save it and skip setup:'));
-          console.log(chalk.cyan('harikrupa --key "your_new_key_here"\n'));
-          return;
-        }
-
+        console.log(chalk.yellow.bold("Step 1 of 2:"));
+        const cleanKey = await promptForGroqKey();
+        if (!cleanKey) { process.exitCode = 1; return; } // helper already printed guidance
         config.GROQ_API_KEY = cleanKey;
       }
 
       if (!config.PREFERRED_LANGUAGE) {
         console.log("");
-        const userLang = await ask("Step 2: What is your preferred language for the answers? (e.g., Gujarati, Hindi, Spanish): ");
+        const userLang = await ask("Step 2 of 2: What is your preferred language for the answers? (e.g., Gujarati, Hindi, Spanish): ");
         config.PREFERRED_LANGUAGE = toTitleCase(userLang.trim()) || 'English';
       }
 
@@ -229,6 +345,7 @@ program
       console.log(head('\nSETTINGS'));
       console.log(row('harikrupa --lang "<language>"',  'Change your output language'));
       console.log(row('harikrupa --key "gsk_..."',  'Update your Groq API key'));
+      console.log(row('harikrupa --key',            '…or set one interactively (opens browser)'));
       console.log(row('harikrupa --version',        'Show the installed version'));
 
       console.log(head('\nEXAMPLES'));
@@ -251,13 +368,31 @@ program
       console.log(chalk.blue(`\nReflecting on your situation in English & ${prefLang}...\n`));
     }
 
+    // Reject empty topics early with a clear message — otherwise the embedding pipeline
+    // runs on an empty string and produces a meaningless best-match.
+    if (!isRandomMode && options.topic !== undefined && options.topic.trim() === '') {
+      console.log(chalk.red('\n❌ Your question is empty.'));
+      console.log(chalk.white('Try something like: ') + chalk.cyan('harikrupa -t "I feel overwhelmed by this release"') + '\n');
+      process.exitCode = 1;
+      return;
+    }
+
     try {
       // --- 6. DB LOAD & VERSE SELECTION ---
       if (!fs.existsSync(DB_PATH)) {
-        throw new Error("Local database missing. Ensure 'data/verse_embeddings.json' exists.");
+        throw new Error("Local database missing at " + DB_PATH);
       }
 
-      const verses = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
+      let verses;
+      try {
+        verses = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
+      } catch (e) {
+        throw new Error("Local database file is corrupt (verse_embeddings.json could not be parsed)");
+      }
+      if (!Array.isArray(verses) || verses.length === 0) {
+        throw new Error("Local database is empty — no verses to choose from");
+      }
+
       let bestMatch = null;
 
       // If 'random', just grab a random array index. Otherwise, do the math!
@@ -394,11 +529,14 @@ program
         temperature: 0.5,
       });
 
+      const rawResponse = (chatCompletion.choices?.[0]?.message?.content || '').trim();
+      if (!rawResponse) {
+        throw new Error('Groq returned an empty response (no content)');
+      }
+
       // --- 8. FINAL OUTPUT ---
       console.log(gold(`Wisdom from Srimad Bhagavad Gita: Chapter ${matchedVerse.chapter}, Verse ${matchedVerse.verse}`));
       console.log(chalk.white("--------------------------------------------------\n"));
-
-      let rawResponse = chatCompletion.choices[0]?.message?.content || "";
 
       let coloredResponse = rawResponse.split('\n').map(line => {
         if (line.match(/^###\s+/)) {
@@ -430,17 +568,9 @@ program
       console.log(chalk.white("\n--------------------------------------------------\n"));
 
     } catch (error) {
-      console.log(chalk.red('\n❌ System Error:'));
-      console.error(chalk.white(error.message));
-
-      if (error.message.includes('401') || error.message.includes('invalid') || error.message.includes('API key')) {
-        console.log(chalk.yellow("\n⚠️  It looks like your current Groq API key is invalid or expired."));
-        console.log(chalk.white("You can easily generate a new, free key at: ") + chalk.blue.underline("https://console.groq.com/keys"));
-        console.log(chalk.white("Then, update it in Harikrupa by running:"));
-        console.log(chalk.cyan('harikrupa --key "your_new_key_here"\n'));
-      } else if (error.message.includes('fetch') || error.message.includes('network')) {
-        console.log(chalk.yellow("\nTip: Check your internet connection. We need it to talk to Groq."));
-      }
+      // All error classification and actionable guidance lives in reportError.
+      // Set DEBUG=harikrupa in the environment to also see the stack trace.
+      reportError(error, { verbose: process.env.DEBUG === 'harikrupa' });
     }
   });
 
