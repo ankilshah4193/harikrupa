@@ -2,5 +2,3 @@ node_modules
 .DS_Store
 .env
 .harikrupa.json
-.generate-embeddings.js
-.gitignore
