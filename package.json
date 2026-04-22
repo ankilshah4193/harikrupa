@@ -1,6 +1,6 @@
 {
   "name": "harikrupa",
-  "version": "4.0.9",
+  "version": "5.0.0",
   "description": "Ancient wisdom dynamically tailored to modern developer burnout.",
   "main": "index.js",
   "type": "module",
