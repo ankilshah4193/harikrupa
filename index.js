@@ -12,14 +12,12 @@ import { exec } from 'child_process';
 import { pipeline, cos_sim } from '@xenova/transformers';
 import Groq from 'groq-sdk';
 
-// File System Setup
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const DB_PATH = path.join(__dirname, 'data', 'verse_embeddings.json');
 const CONFIG_PATH = path.join(os.homedir(), '.harikrupa.json');
 
-// Helper to title-case a language name (e.g., "gujarati" -> "Gujarati", "SPANISH" -> "Spanish")
-// Handles multi-word names too (e.g., "brazilian portuguese" -> "Brazilian Portuguese").
+// Title-case a language name, handling multi-word inputs ("brazilian portuguese" -> "Brazilian Portuguese").
 const toTitleCase = (str) => {
   if (!str) return str;
   return str
@@ -30,10 +28,8 @@ const toTitleCase = (str) => {
     .join(' ');
 };
 
-// Native-script names for common languages. Used to render the section header
-// in the user's own script (e.g., "### ગુજરાતી દ્રષ્ટિકોણ" instead of "### Gujarati Perspective").
-// If a language isn't in this map, we fall back to the English name and also ask
-// the LLM (in the prompt) to use the native script in its own heading.
+// Native-script section headers keyed by lowercase language name. Languages not in this map
+// fall back to "<Lang> Perspective" and the LLM is asked to translate the heading itself.
 const NATIVE_LANG_NAMES = {
   'gujarati':   'ગુજરાતી દ્રષ્ટિકોણ',
   'hindi':      'हिंदी दृष्टिकोण',
@@ -59,12 +55,8 @@ const NATIVE_LANG_NAMES = {
   'english':    'English Perspective',
 };
 
-// Returns the section heading for the preferred language along with a flag
-// indicating whether the heading is already in that language's native script.
-// - If the language is in NATIVE_LANG_NAMES  -> { heading: "<native script>", isNative: true }
-//   (use verbatim; do not re-translate)
-// - Otherwise                                -> { heading: "<Lang> Perspective", isNative: false }
-//   (caller should ask the LLM to translate the heading into the native script of that language)
+// Returns the section heading for the user's language and whether it's already in native script.
+// When isNative is false, the caller asks the LLM to translate the fallback heading.
 const getNativePerspectiveHeading = (language) => {
   const key = (language || '').toLowerCase().trim();
   if (NATIVE_LANG_NAMES[key]) {
@@ -73,7 +65,6 @@ const getNativePerspectiveHeading = (language) => {
   return { heading: `${toTitleCase(language)} Perspective`, isNative: false };
 };
 
-// Helper for interactive setup
 const ask = (question) => {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   return new Promise(resolve => rl.question(chalk.cyan(question), ans => {
@@ -82,7 +73,6 @@ const ask = (question) => {
   }));
 };
 
-// Helper to open URLs cross-platform
 const openBrowser = (url) => {
   const command = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
   exec(`${command} ${url}`, () => { });
@@ -90,8 +80,6 @@ const openBrowser = (url) => {
 
 const GROQ_KEYS_URL = 'https://console.groq.com/keys';
 
-// Interactive "press ENTER → open browser → paste key → validate" flow.
-// Shared by the onboarding wizard and `harikrupa --key` (invoked with no value).
 // Returns the cleaned key on success, or null if the user typed an invalid key.
 const promptForGroqKey = async () => {
   console.log(chalk.yellow.bold("Get your FREE API key from Groq (no credit card required!)"));
@@ -114,17 +102,6 @@ const promptForGroqKey = async () => {
   return cleanKey;
 };
 
-// Classifies an error and prints tailored, actionable guidance.
-// Always sets process.exitCode = 1 so the shell knows the command failed.
-//
-// Categories:
-//   auth     → Groq rejected the key (401/403, "Invalid API Key", etc.)
-//   rate     → Groq rate-limited us (429)
-//   network  → DNS / fetch / ECONN... (can't reach Groq)
-//   db       → Local embedding DB missing, corrupt, or empty
-//   model    → @xenova/transformers failed (usually first-run download issues)
-//   empty    → Groq returned an empty response body
-//   unknown  → everything else
 const classifyError = (error) => {
   const msg = (error?.message || String(error)).toLowerCase();
   const status = error?.status ?? error?.response?.status;
@@ -145,7 +122,6 @@ const reportError = (error, { verbose = false } = {}) => {
   process.exitCode = 1;
   const category = classifyError(error);
 
-  // Ordered so related guidance reads together: headline → explanation → fix.
   switch (category) {
     case 'auth':
       console.log(chalk.red('\n❌ Your Groq API key was rejected.'));
@@ -208,13 +184,9 @@ const reportError = (error, { verbose = false } = {}) => {
   }
 };
 
-// Helper to check internet connection.
-// Uses a TCP probe to Cloudflare DNS (1.1.1.1:53) rather than a DNS hostname lookup:
-//   - Works in regions where Google is blocked.
-//   - TCP reachability is a stronger signal than DNS resolution (which can return
-//     cached results even when actually offline).
-//   - No external dependencies, uses Node's built-in `net` module.
-// Capped at 1500ms so a flaky network doesn't stall the CLI.
+// TCP probe to Cloudflare DNS (1.1.1.1:53). More reliable than a hostname lookup,
+// which can return cached results while actually offline, and works in regions where
+// other endpoints are blocked. Capped at 1500ms so a flaky network doesn't stall the CLI.
 const isOnline = (timeoutMs = 1500) => {
   return new Promise((resolve) => {
     const socket = new net.Socket();
@@ -234,30 +206,28 @@ const isOnline = (timeoutMs = 1500) => {
 };
 
 program
-  .version('4.0.4')
+  .version('4.0.5')
   .description('Ancient wisdom for the modern era (English + Preferred Language).')
-  .argument('[cmd]', 'Run a specific command (e.g., "random")') // <--- Added argument support
+  .argument('[cmd]', 'Run a specific command (e.g., "random")')
   .option('-t, --topic <query>', 'Ask your life question in English')
   .option('--lang <language>', 'Change your preferred language preference')
   .option('--key [key]', 'Update your Groq API key (omit value to open browser)')
   .action(async (cmd, options) => {
 
-    // --- 1. LOAD CONFIGURATION ---
     let config = { GROQ_API_KEY: null, PREFERRED_LANGUAGE: null };
     if (fs.existsSync(CONFIG_PATH)) {
       try {
         config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
       } catch (e) {
-        // Don't silently swallow: tell the user so they aren't confused when the wizard re-runs.
+        // Surface corruption so the user isn't confused when the wizard re-runs.
         console.log(chalk.yellow(`\n⚠️  Your config file appears to be corrupt: ${CONFIG_PATH}`));
         console.log(chalk.white('Resetting it and restarting the setup wizard...\n'));
         config = { GROQ_API_KEY: null, PREFERRED_LANGUAGE: null };
       }
     }
 
-    // --- 2. UPDATE LANGUAGE PREFERENCE ---
     if (options.lang) {
-      // Normalize to title case so "gujarati" / "GUJARATI" both become "Gujarati"
+      // Normalize so "gujarati" / "GUJARATI" both become "Gujarati".
       config.PREFERRED_LANGUAGE = toTitleCase(options.lang.trim());
       fs.writeFileSync(CONFIG_PATH, JSON.stringify(config));
       console.log(chalk.green(`\n✅ Language preference updated to: ${config.PREFERRED_LANGUAGE}`));
@@ -265,17 +235,15 @@ program
       return;
     }
 
-    // --- 3. SET OR UPDATE API KEY ---
-    // `--key gsk_...` supplies a value (options.key is the string).
-    // `--key` alone supplies no value (options.key is `true` per Commander's convention).
-    // In the latter case, walk the user through the same "open browser → paste" flow the wizard uses.
+    // `--key gsk_...` gives options.key a string; bare `--key` gives `true` (Commander's convention).
+    // The latter triggers the same browser-assisted flow the onboarding wizard uses.
     if (options.key !== undefined) {
       let cleanKey;
 
       if (options.key === true || String(options.key).trim() === '') {
         console.log(chalk.green.bold("\n🔑 Update Groq API Key\n"));
         cleanKey = await promptForGroqKey();
-        if (!cleanKey) { process.exitCode = 1; return; } // helper already printed guidance
+        if (!cleanKey) { process.exitCode = 1; return; }
       } else {
         cleanKey = String(options.key).trim();
         if (!cleanKey.startsWith('gsk_')) {
@@ -293,7 +261,6 @@ program
       return;
     }
 
-    // --- 4. ONBOARDING WIZARD ---
     if (!config.GROQ_API_KEY || !config.PREFERRED_LANGUAGE) {
       console.log(chalk.green.bold("\n🌟 Welcome to Harikrupa Setup Wizard"));
       console.log(chalk.white("Let's get you connected to the Gita in 2 quick steps.\n"));
@@ -301,7 +268,7 @@ program
       if (!config.GROQ_API_KEY) {
         console.log(chalk.yellow.bold("Step 1 of 2:"));
         const cleanKey = await promptForGroqKey();
-        if (!cleanKey) { process.exitCode = 1; return; } // helper already printed guidance
+        if (!cleanKey) { process.exitCode = 1; return; }
         config.GROQ_API_KEY = cleanKey;
       }
 
@@ -317,19 +284,16 @@ program
       return;
     }
 
-    // --- 5. INPUT VALIDATION & HELP MENU ---
     const isRandomMode = cmd === 'random';
-    // Title-case on load so older configs saved with lowercase still render correctly.
+    // Re-apply title-case so older configs saved with lowercase still render correctly.
     const prefLang = toTitleCase(config.PREFERRED_LANGUAGE) || 'English';
 
-    // If they didn't provide a topic AND they didn't type "random", show the help menu.
     if (!options.topic && !isRandomMode) {
-      const label = chalk.cyan;           // command text
-      const hint  = chalk.white.dim;      // description text
-      const head  = chalk.yellow.bold;    // section headers
+      const label = chalk.cyan;
+      const hint  = chalk.white.dim;
+      const head  = chalk.yellow.bold;
       const rule  = chalk.white.dim('─'.repeat(54));
 
-      // Small helper to keep columns aligned regardless of command length.
       // COL is sized to fit the longest command (~32 chars) plus a 2-space gutter.
       const COL = 34;
       const row = (cmdStr, desc) => '  ' + label(cmdStr.padEnd(COL)) + hint(desc);
@@ -368,8 +332,7 @@ program
       console.log(chalk.blue(`\nReflecting on your situation in English & ${prefLang}...\n`));
     }
 
-    // Reject empty topics early with a clear message — otherwise the embedding pipeline
-    // runs on an empty string and produces a meaningless best-match.
+    // Otherwise the embedding pipeline runs on an empty string and returns a meaningless match.
     if (!isRandomMode && options.topic !== undefined && options.topic.trim() === '') {
       console.log(chalk.red('\n❌ Your question is empty.'));
       console.log(chalk.white('Try something like: ') + chalk.cyan('harikrupa -t "I feel overwhelmed by this release"') + '\n');
@@ -378,7 +341,6 @@ program
     }
 
     try {
-      // --- 6. DB LOAD & VERSE SELECTION ---
       if (!fs.existsSync(DB_PATH)) {
         throw new Error("Local database missing at " + DB_PATH);
       }
@@ -395,7 +357,6 @@ program
 
       let bestMatch = null;
 
-      // If 'random', just grab a random array index. Otherwise, do the math!
       if (isRandomMode) {
         const randomIndex = Math.floor(Math.random() * verses.length);
         bestMatch = verses[randomIndex];
@@ -421,16 +382,13 @@ program
 
       if (!bestMatch) throw new Error("Could not find a relevant verse.");
 
-      // Strip the 384-dim embedding vector before any downstream use:
-      // it's only needed for the similarity math above, and keeping it would
-      // pollute any log / JSON.stringify / future prompt-context that includes bestMatch.
+      // Strip the 384-dim embedding vector so it doesn't pollute logs or future prompt context.
       const { embedding: _embedding, ...matchedVerse } = bestMatch;
 
       const gold = chalk.hex('#FFD700').bold;
       const subTitleColor = chalk.cyanBright.bold;
       const bodyText = chalk.white.dim;
 
-      // --- OFFLINE FALLBACK CHECK ---
       const online = await isOnline();
       if (!online) {
         console.log(chalk.yellow('⚠️  No Internet Connection Detected.'));
@@ -442,7 +400,6 @@ program
         console.log(bodyText(matchedVerse.sanskrit_verse));
 
         const localLangKey = prefLang.toLowerCase();
-        // `matchedVerse` no longer carries the embedding, so we only need to exclude metadata keys.
         const excludedKeys = ['chapter', 'verse', 'sanskrit_verse'];
         const availableLangs = Object.keys(matchedVerse)
           .filter(key => !excludedKeys.includes(key))
@@ -465,10 +422,8 @@ program
         return;
       }
 
-      // --- 7. GROQ BILINGUAL MENTOR PROMPT ---
       const groq = new Groq({ apiKey: config.GROQ_API_KEY });
 
-      // Determine what to tell the AI based on the mode
       const simulatedUserInput = isRandomMode
         ? "I would like a random verse of the day for general grounding and reflection."
         : `"${options.topic}"`;
@@ -477,13 +432,10 @@ program
         ? "**Empathy:** [Provide a warm, grounding thought for the day in a detailed 3-line paragraph. Do not reference a specific struggle.]"
         : "**Empathy:** [Acknowledge their specific situation in a detailed 3-line paragraph]";
 
-      // Resolve the second section's heading.
-      // Mapped languages (Gujarati, Hindi, Spanish, ...) come back in native script and are used verbatim.
-      // Unmapped languages come back as "<Lang> Perspective" (English fallback) and the LLM is instructed
-      // below to translate that heading into the native script of that language.
+      // Mapped languages come back in native script (use verbatim); unmapped ones come back as
+      // "<Lang> Perspective" and the LLM is instructed below to translate the heading itself.
       const { heading: secondHeading, isNative: headingIsNative } = getNativePerspectiveHeading(prefLang);
 
-      // Heading instruction differs depending on whether we can provide the native-script form ourselves.
       const headingInstruction = headingIsNative
         ? `The second heading "### ${secondHeading}" is already written in the native script of ${prefLang}. Use it EXACTLY as given. Do not translate, romanize, rewrite, or append any English words (including "Perspective") to it.`
         : `The second heading "### ${secondHeading}" is currently in English as a placeholder. Replace it with the equivalent phrase in the native script of ${prefLang} (meaning "${prefLang} Perspective" translated into ${prefLang}'s own script). If ${prefLang} is typically written in Latin script, keep the phrase in ${prefLang} but in Latin script. Use the translated heading consistently in BOTH places where the "${secondHeading}" heading appears below.`;
@@ -534,7 +486,6 @@ program
         throw new Error('Groq returned an empty response (no content)');
       }
 
-      // --- 8. FINAL OUTPUT ---
       console.log(gold(`Wisdom from Srimad Bhagavad Gita: Chapter ${matchedVerse.chapter}, Verse ${matchedVerse.verse}`));
       console.log(chalk.white("--------------------------------------------------\n"));
 
@@ -568,7 +519,6 @@ program
       console.log(chalk.white("\n--------------------------------------------------\n"));
 
     } catch (error) {
-      // All error classification and actionable guidance lives in reportError.
       // Set DEBUG=harikrupa in the environment to also see the stack trace.
       reportError(error, { verbose: process.env.DEBUG === 'harikrupa' });
     }
