@@ -11,15 +11,17 @@ import { fileURLToPath } from 'url';
 import { exec } from 'child_process';
 import { pipeline, cos_sim } from '@xenova/transformers';
 import Groq from 'groq-sdk';
+import { createRequire } from 'module';
 
 // File System Setup
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const require = createRequire(import.meta.url);
+const pkg = require('./package.json');
 const DB_PATH = path.join(__dirname, 'data', 'verse_embeddings.json');
 const CONFIG_PATH = path.join(os.homedir(), '.harikrupa.json');
 
 // Helper to title-case a language name (e.g., "gujarati" -> "Gujarati", "SPANISH" -> "Spanish")
-// Handles multi-word names too (e.g., "brazilian portuguese" -> "Brazilian Portuguese").
 const toTitleCase = (str) => {
   if (!str) return str;
   return str
@@ -234,9 +236,9 @@ const isOnline = (timeoutMs = 1500) => {
 };
 
 program
-  .version('4.0.7')
+  .version(pkg.version)
   .description('Ancient wisdom for the modern era (English + Preferred Language).')
-  .argument('[cmd]', 'Run a specific command (e.g., "random")') // <--- Added argument support
+  .argument('[cmd]', 'Run a specific command (e.g., "random")')
   .option('-t, --topic <query>', 'Ask your life question in English')
   .option('--lang <language>', 'Change your preferred language preference')
   .option('--key [key]', 'Update your Groq API key (omit value to open browser)')

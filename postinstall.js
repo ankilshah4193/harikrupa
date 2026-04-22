@@ -1,3 +1,7 @@
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const pkg = require('./package.json');
+
 const reset = "\x1b[0m";
 const cyan = "\x1b[36m";
 const green = "\x1b[32m";
@@ -6,7 +10,8 @@ const bold = "\x1b[1m";
 const dim = "\x1b[2m";
 
 console.log("\n");
-console.log(green + bold + "  🙏 Harikrupa (v4.0.7) installed successfully!" + reset);
+// Dynamically uses the version from package.json
+console.log(green + bold + `  🙏 Harikrupa (v${pkg.version}) installed successfully!` + reset);
 console.log(dim + "  Ancient wisdom dynamically tailored to modern developer burnout." + reset);
 console.log("\n  " + cyan + bold + "GETTING STARTED" + reset);
 console.log("  " + "--------------------------------------------------");
@@ -17,5 +22,4 @@ console.log("  " + "--------------------------------------------------");
 console.log("\n  " + cyan + bold + "HELPFUL COMMANDS" + reset);
 console.log("  " + bold + "--lang" + reset + "       Change your language (e.g., " + yellow + "harikrupa --lang Hindi" + reset + ")");
 console.log("  " + bold + "--key" + reset + "        Update your Groq API key manually");
-console.log("  " + bold + "--version" + reset + "    Check current version");
-console.log("\n  " + dim + "Works offline and online. Get ready for a vibe shift.\n" + reset);
+console.log("  " + "--------------------------------------------------\n");
