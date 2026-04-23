@@ -13,7 +13,7 @@ Harikrupa is a lightweight, high-performance CLI tool designed to help developer
 
 * **🧠 Smart Semantic Search:** Uses a local vector database to find the perfect matching Bhagavad Gita verse for your specific situation.
 * **🎲 Verse of the Day:** Use the `random` command for a quick grounding thought without needing to ask a specific question.
-* **🌍 Bilingual Perspective:** Get structured wisdom in English and your preferred language side-by-side. Built-in native-script headings for 20+ languages (Gujarati → `ગુજરાતી દ્રષ્ટિકોણ`, Hindi → `हिंदी दृष्टिकोण`, Japanese → `日本語の視点`, etc.); any other language is translated dynamically by the AI.
+* **🌍 Bilingual Perspective: Get structured wisdom in English and your preferred language side-by-side. Built-in native-script headings for 20+ languages (Gujarati → ગુજરાતી દ્રષ્ટિકોણ, Hindi → हिंदी दृष्टिकोण, Japanese → 日本語の視点, Spanish → Perspectiva en Español, French → Perspective en Français, Punjabi → ਪੰਜਾਬੀ ਦ੍ਰਿਸ਼ਟੀਕੋਣ, and many more..); any other language is translated dynamically by the AI.
 * **🎨 Aesthetic UI:** Fully color-coded terminal output with Gold perspectives, Cyan subheaders, and dimmed body text for better focus.
 * **📴 Offline-First:** Works anywhere. If you're off-grid, it safely falls back to local translations so your wisdom is never out of reach.
 * **💸 100% Free AI:** Uses Groq's LPU technology for near-instant answers. No credit card or subscription required.
@@ -64,6 +64,33 @@ harikrupa random
 * **Update API Key:** `harikrupa --key "gsk_..."`
 * **Update API Key (interactive):** `harikrupa --key` — press ENTER to open the Groq console in your browser, then paste the key back.
 * **Help Menu:** `harikrupa` (with no arguments) — also shows your currently configured language and whether your key is set.
+
+---
+
+## 🏢 Corporate / Org Laptop Users
+
+Harikrupa requires outbound network access to three external services. Before installing, confirm these are reachable on your network:
+
+| Service | Domain | Purpose |
+|---|---|---|
+| npm registry | `registry.npmjs.org` | Package install |
+| Hugging Face | `huggingface.co` | One-time model download (~25 MB) |
+| Groq API | `api.groq.com` | AI-guided response |
+
+If any of these are blocked by your IT or firewall policy, here are your options:
+
+**Option 1 — npm Proxy Config**
+If your org routes traffic through a proxy:
+```bash
+npm config set proxy http://your-corporate-proxy:8080
+npm config set https-proxy http://your-corporate-proxy:8080
+npm install -g harikrupa
+```
+
+**Option 2 — Personal Machine or Hotspot**
+Run harikrupa on a personal device, or tether your org laptop to a personal hotspot for the install and model download. Once installed, `harikrupa random` works fully offline.
+
+> 💡 The `random` command never calls any external API — it serves a verse directly from your local database. It will always work once harikrupa is installed, regardless of network conditions.
 
 ---
 
