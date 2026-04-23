@@ -143,6 +143,11 @@ const classifyError = (error) => {
   return 'unknown';
 };
 
+// Errors for which we can still deliver the verse locally (just without AI commentary).
+// For these, we print a warning, render the verse, and exit cleanly (exit code 0).
+// For everything else, we bail out via reportError with a non-zero exit code.
+const VERSE_RECOVERABLE = new Set(['auth', 'rate', 'network', 'empty']);
+
 const reportError = (error, { verbose = false } = {}) => {
   process.exitCode = 1;
   const category = classifyError(error);
@@ -233,6 +238,76 @@ const isOnline = (timeoutMs = 1500) => {
     socket.once('error', () => done(false));
     socket.connect(53, '1.1.1.1');
   });
+};
+
+// Shared renderer for the "verse only" path.
+// Called in three scenarios:
+//   1. User is offline (no network at all).
+//   2. Groq call failed with a recoverable error (rate limit, auth, transient network, empty response).
+//   3. User ran `harikrupa random` and we skipped the Groq call for brevity (future use).
+//
+// The `reason` parameter controls the warning banner so the user knows why AI commentary
+// is disabled this time. The verse itself is always shown from the local database.
+const renderVerseOnly = (matchedVerse, prefLang, reason = 'offline') => {
+  const gold = chalk.hex('#FFD700').bold;
+  const subTitleColor = chalk.cyanBright.bold;
+  const bodyText = chalk.white.dim;
+
+  // Banner message for each reason. Keep these short, friendly, and honest.
+  const banners = {
+    offline:    '⚠️  No Internet Connection Detected.',
+    rate:       '⚠️  Groq is rate-limiting this key right now.',
+    auth:       '⚠️  Groq rejected the API key.',
+    network:    '⚠️  Cannot reach Groq right now.',
+    empty:      '⚠️  Groq returned an empty response.',
+  };
+  const explanations = {
+    offline: 'Harikrupa is running in Offline Mode. AI mentor commentary is disabled, but here is your guiding verse:',
+    rate:    'AI mentor commentary is disabled for this request. Here is your guiding verse from the local database:',
+    auth:    'AI mentor commentary is disabled until the key is updated. Here is your guiding verse from the local database:',
+    network: 'AI mentor commentary is disabled for this request. Here is your guiding verse from the local database:',
+    empty:   'AI mentor commentary is unavailable for this request. Here is your guiding verse from the local database:',
+  };
+
+  console.log(chalk.yellow(banners[reason] || banners.offline));
+  console.log(bodyText((explanations[reason] || explanations.offline) + '\n'));
+
+  console.log(gold(`Wisdom from Srimad Bhagavad Gita: Chapter ${matchedVerse.chapter}, Verse ${matchedVerse.verse}`));
+  console.log(chalk.white("--------------------------------------------------"));
+  console.log(subTitleColor("Sanskrit Verse:"));
+  console.log(bodyText(matchedVerse.sanskrit_verse));
+
+  const localLangKey = prefLang.toLowerCase();
+  // `matchedVerse` no longer carries the embedding, so we only need to exclude metadata keys.
+  const excludedKeys = ['chapter', 'verse', 'sanskrit_verse'];
+  const availableLangs = Object.keys(matchedVerse)
+    .filter(key => !excludedKeys.includes(key))
+    .map(toTitleCase);
+
+  if (localLangKey !== 'english') {
+    console.log(subTitleColor(`\n${prefLang} Meaning:`));
+    if (matchedVerse[localLangKey]) {
+      console.log(bodyText(matchedVerse[localLangKey]));
+    } else {
+      console.log(chalk.yellow(`⚠️ Local Translation Unavailable for ${prefLang}`));
+      console.log(bodyText(`The local database currently has pre-downloaded translations for: ${availableLangs.join(', ')}.`));
+      console.log(bodyText(`(Once AI commentary is available again, the verse will be dynamically translated into ${prefLang}.)`));
+    }
+  }
+
+  console.log(subTitleColor("\nEnglish Meaning:"));
+  console.log(bodyText(matchedVerse.english));
+  console.log(chalk.white("--------------------------------------------------"));
+
+  // Tailored fix-it hint at the bottom so the user knows exactly what to do next.
+  const hints = {
+    rate: `\nFix: wait a minute and try again. Check usage at ${chalk.blue.underline('https://console.groq.com/settings/limits')}\n`,
+    auth: `\nFix: run ${chalk.cyan('harikrupa --key')} to set a new free Groq API key (no credit card needed).\n`,
+    network: `\nFix: check your connection, VPN, or firewall. You can always try again in a moment.\n`,
+    empty: `\nFix: try again in a moment — this is usually a transient hiccup on Groq's end.\n`,
+    offline: '\n',
+  };
+  console.log(chalk.dim(hints[reason] || hints.offline));
 };
 
 program
@@ -433,41 +508,18 @@ program
       const bodyText = chalk.white.dim;
 
       // --- OFFLINE FALLBACK CHECK ---
+      // If we're fully offline, skip Groq entirely and render the verse from local data.
       const online = await isOnline();
       if (!online) {
-        console.log(chalk.yellow('⚠️  No Internet Connection Detected.'));
-        console.log(bodyText('Harikrupa is running in Offline Mode. AI mentor commentary is disabled, but here is your guiding verse:\n'));
-
-        console.log(gold(`Wisdom from Srimad Bhagavad Gita: Chapter ${matchedVerse.chapter}, Verse ${matchedVerse.verse}`));
-        console.log(chalk.white("--------------------------------------------------"));
-        console.log(subTitleColor("Sanskrit:"));
-        console.log(bodyText(matchedVerse.sanskrit_verse));
-
-        const localLangKey = prefLang.toLowerCase();
-        // `matchedVerse` no longer carries the embedding, so we only need to exclude metadata keys.
-        const excludedKeys = ['chapter', 'verse', 'sanskrit_verse'];
-        const availableLangs = Object.keys(matchedVerse)
-          .filter(key => !excludedKeys.includes(key))
-          .map(toTitleCase);
-
-        if (localLangKey !== 'english') {
-          console.log(subTitleColor(`\n${prefLang}:`));
-          if (matchedVerse[localLangKey]) {
-            console.log(bodyText(matchedVerse[localLangKey]));
-          } else {
-            console.log(chalk.yellow(`⚠️ Offline Translation Unavailable`));
-            console.log(bodyText(`Your local database currently only has pre-downloaded translations for: ${availableLangs.join(', ')}.`));
-            console.log(bodyText(`(Please connect to the internet so the AI can dynamically translate this into ${prefLang})`));
-          }
-        }
-
-        console.log(subTitleColor("\nEnglish:"));
-        console.log(bodyText(matchedVerse.english));
-        console.log(chalk.white("--------------------------------------------------\n"));
+        renderVerseOnly(matchedVerse, prefLang, 'offline');
         return;
       }
 
       // --- 7. GROQ BILINGUAL MENTOR PROMPT ---
+      // Even though we're online, Groq itself may reject the request (rate limit, auth, etc.).
+      // We wrap the call in its own try/catch so we can fall back to the local verse
+      // renderer for any *recoverable* failure, while still surfacing unrecoverable
+      // failures (like a corrupt DB) to the outer handler.
       const groq = new Groq({ apiKey: config.GROQ_API_KEY });
 
       // Determine what to tell the AI based on the mode
@@ -525,15 +577,30 @@ program
       - Keep the language simple and avoid complex vocabulary.
       `;
 
-      const chatCompletion = await groq.chat.completions.create({
-        messages: [{ role: 'system', content: systemPrompt }],
-        model: 'openai/gpt-oss-120b',
-        temperature: 0.5,
-      });
+      let rawResponse;
+      try {
+        const chatCompletion = await groq.chat.completions.create({
+          messages: [{ role: 'system', content: systemPrompt }],
+          model: 'openai/gpt-oss-120b',
+          temperature: 0.5,
+        });
 
-      const rawResponse = (chatCompletion.choices?.[0]?.message?.content || '').trim();
-      if (!rawResponse) {
-        throw new Error('Groq returned an empty response (no content)');
+        rawResponse = (chatCompletion.choices?.[0]?.message?.content || '').trim();
+        if (!rawResponse) {
+          throw new Error('Groq returned an empty response (no content)');
+        }
+      } catch (groqError) {
+        // If this is a recoverable error (rate limit, auth, transient network, empty), we still
+        // deliver the verse from local data rather than leaving the user with nothing. The tool
+        // exits cleanly (exit code 0) since the core wisdom was delivered. The banner explains
+        // why AI commentary is disabled and the bottom hint tells them how to fix it.
+        const category = classifyError(groqError);
+        if (VERSE_RECOVERABLE.has(category)) {
+          renderVerseOnly(matchedVerse, prefLang, category);
+          return;
+        }
+        // Otherwise, rethrow so the outer handler reports it as a hard failure.
+        throw groqError;
       }
 
       // --- 8. FINAL OUTPUT ---

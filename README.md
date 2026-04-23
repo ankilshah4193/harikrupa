@@ -13,9 +13,9 @@ Harikrupa is a lightweight, high-performance CLI tool designed to help developer
 
 * **🧠 Smart Semantic Search:** Uses a local vector database to find the perfect matching Bhagavad Gita verse for your specific situation.
 * **🎲 Verse of the Day:** Use the `random` command for a quick grounding thought without needing to ask a specific question.
-* **🌍 Bilingual Perspective: Get structured wisdom in English and your preferred language side-by-side. Built-in native-script headings for 20+ languages (Gujarati → ગુજરાતી દ્રષ્ટિકોણ, Hindi → हिंदी दृष्टिकोण, Japanese → 日本語の視点, Spanish → Perspectiva en Español, French → Perspective en Français, Punjabi → ਪੰਜਾਬੀ ਦ੍ਰਿਸ਼ਟੀਕੋਣ, and many more..); any other language is translated dynamically by the AI.
+* **🌍 Bilingual Perspective:** Get structured wisdom in English and your preferred language side-by-side. Built-in native-script headings for 20+ languages (Gujarati → `ગુજરાતી દ્રષ્ટિકોણ`, Hindi → `हिंदी दृष्टिकोण`, Japanese → `日本語の視点`, Spanish → `Perspectiva en Español`, French → `Perspective en Français`, Punjabi → `ਪੰਜਾਬੀ ਦ੍ਰਿਸ਼ਟੀਕੋਣ`, etc.); any other language is translated dynamically by the AI.
 * **🎨 Aesthetic UI:** Fully color-coded terminal output with Gold perspectives, Cyan subheaders, and dimmed body text for better focus.
-* **📴 Offline-First:** Works anywhere. If you're off-grid, it safely falls back to local translations so your wisdom is never out of reach.
+* **📴 Always-Available Verse:** The verse always reaches you. Offline, rate-limited, or any API issue, Harikrupa falls back to the local database so you never walk away empty-handed.
 * **💸 100% Free AI:** Uses Groq's LPU technology for near-instant answers. No credit card or subscription required.
 * **🩹 Clear Error Messages:** When something goes wrong (expired key, rate limit, network issue, corrupt install), Harikrupa tells you exactly what happened and the one command that will fix it.
 
@@ -42,6 +42,18 @@ harikrupa
 **Step 1: Get your Free API Key** The CLI will display the Groq console link. Simply **Press ENTER** to automatically open it in your browser. Copy the key and paste it back into the terminal. No manual URL copying required!
 
 **Step 2: Set your Language** Tell Harikrupa which language you prefer for your bilingual translations.
+
+---
+
+## 💸 Cost Model
+
+Harikrupa is free to use end to end.
+
+You bring your own free Groq API key, generated in about 30 seconds with no credit card. Groq's free tier is generous, and for the low volume a personal wellness tool generates, most users will never hit a limit. If you ever do, Harikrupa falls back to the local database and still delivers the verse with Sanskrit and pre-downloaded translations. The AI commentary is the only part that is temporarily disabled, and you will see a plain-English message pointing you to your Groq usage page.
+
+The verse database is bundled locally with the package: the original Sanskrit verse plus its meaning in 8 languages (Sanskrit, English, Hindi, Gujarati, Punjabi, Tamil, Telugu, Kannada). No network, no API, no limits for that part.
+
+I do not proxy or host any LLM inference. Your API key lives locally in `~/.harikrupa.json` on your machine. I never see or touch it.
 
 ---
 
@@ -88,9 +100,9 @@ npm install -g harikrupa
 ```
 
 **Option 2 — Personal Machine or Hotspot**
-Run harikrupa on a personal device, or tether your org laptop to a personal hotspot for the install and model download. Once installed, `harikrupa random` works fully offline.
+Run harikrupa on a personal device, or tether your org laptop to a personal hotspot for the install and model download. Once installed, the verse always reaches you from the local database, even if Groq is unreachable.
 
-> 💡 The `random` command never calls any external API — it serves a verse directly from your local database. It will always work once harikrupa is installed, regardless of network conditions.
+> 💡 Even when the AI commentary is unavailable for any reason (offline, rate limit, blocked firewall), Harikrupa always falls back to the local database and still delivers the Sanskrit verse and pre-downloaded translations.
 
 ---
 
@@ -98,9 +110,9 @@ Run harikrupa on a personal device, or tether your org laptop to a personal hots
 
 Harikrupa prints targeted, actionable guidance whenever something goes wrong. You'll see a short diagnosis and the exact command that fixes it. The most common situations:
 
-* **"Your Groq API key was rejected."** — Your key is expired, revoked, or mistyped. Run `harikrupa --key` and follow the interactive flow to set a new one.
-* **"Groq is rate-limiting this key right now."** — Too many requests in a short window. Wait a minute and retry; you can check your usage at [console.groq.com/settings/limits](https://console.groq.com/settings/limits).
-* **"Cannot reach Groq."** — Network issue. Harikrupa still works — you'll get the verse, just without AI commentary (offline mode).
+* **"Your Groq API key was rejected."** — Your key is expired, revoked, or mistyped. The tool still shows you the matched verse from the local database. Run `harikrupa --key` to set a new one and restore AI commentary.
+* **"Groq is rate-limiting this key right now."** — Too many requests in a short window. The tool still shows you the verse from the local database. Wait a minute and retry for the AI commentary; you can check your usage at [console.groq.com/settings/limits](https://console.groq.com/settings/limits).
+* **"Cannot reach Groq."** — Network issue. Harikrupa still delivers the verse from the local database, just without AI commentary.
 * **"Local verse database is missing or corrupt."** — Something went wrong during install. Reinstall with `npm uninstall -g harikrupa && npm install -g harikrupa`.
 * **"The local AI model failed to load."** — On first run Harikrupa downloads a tiny (~25 MB) embedding model. Make sure you have internet, or run `harikrupa random` which skips the model entirely.
 
@@ -111,8 +123,6 @@ If you're filing a bug report or want to see the underlying stack trace, prefix 
 ```bash
 DEBUG=harikrupa harikrupa -t "your question"
 ```
-
-Every failure path also sets a non-zero exit code, so you can reliably chain Harikrupa in shell scripts.
 
 ### Still stuck?
 
@@ -126,6 +136,7 @@ Harikrupa operates on a unique "relay" system:
 1. **Local Extraction:** Your query is converted into a vector locally using `@xenova/transformers`.
 2. **Local Matching:** It finds the best verse match in your local database using Cosine Similarity.
 3. **Cloud Inference:** Only the selected verse and query are sent to Groq for mentor commentary, ensuring maximum speed and privacy.
+4. **Graceful Fallback:** If Groq is unreachable, rate-limited, or the key is rejected, Harikrupa falls back to the local database and still delivers the verse with Sanskrit and pre-downloaded translations.
 
 ---
 
