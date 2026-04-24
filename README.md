@@ -6,6 +6,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Harikrupa is a lightweight, high-performance CLI tool designed to help developers navigate burnout, stress, and life's complex decisions. It utilizes a Hybrid RAG (Retrieval-Augmented Generation) Architecture: performing zero-latency semantic search locally, followed by high-speed inference via the Groq API to provide a customized, bilingual response.
+
 Named from the Sanskrit Hari (a name for the Divine, often associated with Lord Krishna) and Kripa (grace) .. literally "the grace of the Divine" .. this CLI brings a small moment of that grace into your terminal, one verse at a time.
 
 ---
