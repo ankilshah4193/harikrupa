@@ -558,7 +558,7 @@ program
       **Transliteration (IAST):** [Provide phonetic text]
       **Translation (English):** [Provide ONLY the English translation]
       ${empathyInstructions}
-      **Connection:** [Explain the cosmic narrative from the Gita in a detailed 2-3 line paragraph]
+      **Connection:** [Explain the cosmic narrative from the Srimad Bhagavad Gita in a detailed 2-3 line paragraph]
       **Practical Wisdom:** [Provide a modern mental hack or vibe shift in a detailed 2-3 line paragraph]
       **Next Action:** [Provide a high-energy practical step or reflection in a detailed 2-3 line paragraph]
 
