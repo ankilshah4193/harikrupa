@@ -8,6 +8,7 @@
 !index.js
 !postinstall.js
 !package.json
+!README.md
 
 # Whitelist the data directory and the embeddings file
 !/data/
