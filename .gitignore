@@ -1,0 +1,15 @@
+# Ignore everything
+*
+
+# But not these directories (so we can traverse into them)
+!*/
+
+# Whitelist specific files
+!index.js
+!postinstall.js
+!package.json
+
+# Whitelist the data directory and the embeddings file
+!/data/
+/data/*
+!/data/verse_embeddings.json
