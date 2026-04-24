@@ -373,7 +373,7 @@ program
     // --- 4. ONBOARDING WIZARD ---
     if (!config.GROQ_API_KEY || !config.PREFERRED_LANGUAGE) {
       console.log(chalk.green.bold("\n🌟 Welcome to Harikrupa Setup Wizard"));
-      console.log(chalk.white("Let's get you connected to the Gita in 2 quick steps.\n"));
+      console.log(chalk.white("Let's get you connected to the Srimad Bhagavad Gita in 2 quick steps.\n"));
 
       if (!config.GROQ_API_KEY) {
         console.log(chalk.yellow.bold("Step 1 of 2:"));
@@ -543,7 +543,7 @@ program
         : `The second heading "### ${secondHeading}" is currently in English as a placeholder. Replace it with the equivalent phrase in the native script of ${prefLang} (meaning "${prefLang} Perspective" translated into ${prefLang}'s own script). If ${prefLang} is typically written in Latin script, keep the phrase in ${prefLang} but in Latin script. Use the translated heading consistently in BOTH places where the "${secondHeading}" heading appears below.`;
 
       const systemPrompt = `
-      You are a wise mentor and Bhagavad Gita expert.
+      You are a linguistic scholar, a philosopher, a hindu spiritual saint and a hindu spiritual guru with profound knowledge of the Srimad Bhagavad Gita.
 
       User Input: ${simulatedUserInput}
       Most Relevant Verse: Chapter ${matchedVerse.chapter}, Verse ${matchedVerse.verse}
